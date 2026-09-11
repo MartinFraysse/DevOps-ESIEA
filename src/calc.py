@@ -3,7 +3,7 @@
 
 def add(a, b):
     """Renvoie la somme de a et b."""
-    return a - b
+    return a + b
 
 
 def sub(a, b):
