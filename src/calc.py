@@ -31,7 +31,12 @@ def mean(values):
     return sum(values) / len(values)
 
 
-OPERATIONS = {"add": add, "sub": sub, "mul": mul, "div": div, "mod": mod}
+def power(a, b):
+    """Renvoie a élevé à la puissance b."""
+    return a ** b
+
+
+OPERATIONS = {"add": add, "sub": sub, "mul": mul, "div": div, "mod": mod, "pow": power}
 
 if __name__ == "__main__":
     import sys
