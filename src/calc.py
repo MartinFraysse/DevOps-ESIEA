@@ -24,3 +24,12 @@ def mul(a, b):
 def mod(a, b):
     """Renvoie le reste de la division de a par b."""
     return a % b
+
+
+OPERATIONS = {"add": add, "sub": sub, "mul": mul, "div": div, "mod": mod}
+
+if __name__ == "__main__":
+    import sys
+
+    op, a, b = sys.argv[1], float(sys.argv[2]), float(sys.argv[3])
+    print(OPERATIONS[op](a, b))
