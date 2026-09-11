@@ -46,5 +46,9 @@ OPERATIONS = {"add": add, "sub": sub, "mul": mul, "div": div, "mod": mod, "pow":
 if __name__ == "__main__":
     import sys
 
-    op, a, b = sys.argv[1], float(sys.argv[2]), float(sys.argv[3])
-    print(OPERATIONS[op](a, b))
+    op, *args = sys.argv[1:]
+    numbers = [float(x) for x in args]
+    if op == "mean":
+        print(mean(numbers))
+    else:
+        print(OPERATIONS[op](*numbers))
