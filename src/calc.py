@@ -26,6 +26,11 @@ def mod(a, b):
     return a % b
 
 
+def mean(values):
+    """Renvoie la moyenne d'une liste de nombres."""
+    return sum(values) / len(values)
+
+
 OPERATIONS = {"add": add, "sub": sub, "mul": mul, "div": div, "mod": mod}
 
 if __name__ == "__main__":
