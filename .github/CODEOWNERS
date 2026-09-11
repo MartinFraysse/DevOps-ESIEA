@@ -1,0 +1,15 @@
+# Propriétaires de code (étape 5 de l'atelier).
+# GitHub demande automatiquement la revue du propriétaire quand une PR touche sa zone.
+# La dernière règle qui correspond l'emporte : du plus général au plus précis.
+
+# Par défaut : tout le dépôt
+*               @MartinFraysse
+
+# Code Python
+*.py            @MartinFraysse
+
+# Documentation
+*.md            @MartinFraysse
+
+# Configuration GitHub (dont ce fichier)
+/.github/       @MartinFraysse
