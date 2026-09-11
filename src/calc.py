@@ -13,6 +13,8 @@ def sub(a, b):
 
 def div(a, b):
     """Renvoie le quotient a / b."""
+    if b == 0:
+        raise ValueError("division par zéro impossible")
     return a / b
 
 
