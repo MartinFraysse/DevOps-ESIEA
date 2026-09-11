@@ -1,0 +1,40 @@
+# --- Secrets & identifiants (ne jamais committer) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.gpg
+secrets/
+
+# --- Systèmes d'exploitation ---
+.DS_Store
+Thumbs.db
+*~
+
+# --- Éditeurs / IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Dépendances ---
+node_modules/
+vendor/
+.venv/
+venv/
+
+# --- Build & artefacts ---
+dist/
+build/
+out/
+target/
+__pycache__/
+*.pyc
+
+# --- Logs & fichiers temporaires ---
+*.log
+logs/
+tmp/
+coverage/
