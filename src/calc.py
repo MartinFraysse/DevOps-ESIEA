@@ -30,6 +30,8 @@ def mod(a, b):
 
 def mean(values):
     """Renvoie la moyenne d'une liste de nombres."""
+    if not values:
+        raise ValueError("moyenne d'une liste vide impossible")
     return sum(values) / len(values)
 
 
