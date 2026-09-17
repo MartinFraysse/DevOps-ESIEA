@@ -17,9 +17,11 @@ Chaque dossier contient son propre `README.md` qui documente le travail réalis�
 
 ```
 .
-├── .github/CODEOWNERS   # propriétaires par zone (doit rester à la racine pour GitHub)
-├── .gitignore           # exclusions communes à tous les ateliers
-├── hooks/pre-commit     # hook anti-secret, appliqué à tout le dépôt
+├── .github/
+│   ├── CODEOWNERS             # propriétaires par zone
+│   └── workflows/ci.yml       # pipeline CI (lint + tests), lu par GitHub à cet emplacement
+├── .gitignore                 # exclusions communes à tous les ateliers
+├── hooks/pre-commit           # hook anti-secret, appliqué à tout le dépôt
 ├── atelier-1/
 └── atelier-2/
 ```
