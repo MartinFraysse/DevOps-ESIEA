@@ -2,7 +2,7 @@ from app import alert_threshold, sanitize_input, app
 
 
 def test_alert_threshold():
-    assert alert_threshold() == 30
+    assert alert_threshold() == 25
 
 
 def test_sanitize_input_escapes_html():
