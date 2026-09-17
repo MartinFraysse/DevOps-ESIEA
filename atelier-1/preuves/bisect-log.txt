@@ -1,0 +1,12 @@
+git bisect start
+# status: waiting for both 'good' and 'bad' commits
+# bad: [7f81a43f96ed08fd5945a97e067677df0280c2dc] feat(calc): ajoute mean
+git bisect bad 7f81a43f96ed08fd5945a97e067677df0280c2dc
+# status: waiting for 'good' commit(s), 'bad' commit known
+# good: [d74b8f7602c12aed92233e4912b0618127727052] feat(calc): ajoute le module calc avec add
+git bisect good d74b8f7602c12aed92233e4912b0618127727052
+# bad: [a8c9e0e46c9e4e7afd311295005a13817c363e97] feat(calc): ajoute mul
+git bisect bad a8c9e0e46c9e4e7afd311295005a13817c363e97
+# good: [fd64a3062aa6caec5bc42a4828aab7a4fc5c75eb] feat(calc): ajoute div
+git bisect good fd64a3062aa6caec5bc42a4828aab7a4fc5c75eb
+# first 'bad' commit: [a8c9e0e46c9e4e7afd311295005a13817c363e97] feat(calc): ajoute mul
