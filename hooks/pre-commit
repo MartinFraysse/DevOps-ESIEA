@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Hook pre-commit anti-secret (étape 7 de l'atelier).
+# Refuse le commit si une ligne ajoutée contient un motif de secret évident.
+#
+# Activation (une fois par clone) :
+#   git config core.hooksPath hooks
+
+patterns=(
+  'AKIA[0-9A-Z]{16}'                          # clé d'accès AWS
+  'gh[pousr]_[A-Za-z0-9]{36,}'                # jeton GitHub (classique)
+  'github_pat_[A-Za-z0-9_]{22,}'              # jeton GitHub (fine-grained)
+  'sk-(ant-|proj-)?[A-Za-z0-9_-]{20,}'        # clé d'API Anthropic / OpenAI
+  'xox[baprs]-[A-Za-z0-9-]{10,}'              # jeton Slack
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----'        # clé privée (SSH, TLS...)
+  "(password|passwd|pwd|secret|api[_-]?key|token)[a-z0-9_]*[\"']?[[:space:]]*[:=][[:space:]]*[\"'][^\"']{6,}[\"']"  # valeur en dur
+)
+
+# Lignes ajoutées au commit, préfixées par leur fichier (le hook lui-même est exclu).
+added=$(git diff --cached -U0 --no-color --diff-filter=ACM -- . ':(exclude)hooks/pre-commit' |
+  awk '/^\+\+\+ b\//{f=substr($0,7); next} /^\+/{print f ": " substr($0,2)}')
+
+found=0
+for p in "${patterns[@]}"; do
+  if matches=$(printf '%s\n' "$added" | grep -iE -e "$p"); then
+    found=1
+    printf '%s\n' "$matches" | sed 's/^/    /'
+  fi
+done
+
+if [ "$found" -eq 1 ]; then
+  echo >&2
+  echo "❌ Commit refusé : secret potentiel détecté dans les lignes ci-dessus." >&2
+  echo "   Retirez-le (variable d'environnement, fichier .env ignoré par Git) puis recommitez." >&2
+  echo "   Faux positif avéré : git commit --no-verify (à justifier dans la PR)." >&2
+  exit 1
+fi
+exit 0
