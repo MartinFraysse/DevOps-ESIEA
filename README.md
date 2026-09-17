@@ -94,6 +94,12 @@ Rulesets GitHub actifs :
 - `protection-main` (branche par défaut) : PR obligatoire, 1 approbation, revue Code Owner, historique linéaire,
   squash-merge uniquement, suppression et force-push interdits. Push direct sur `main` testé : refusé.
 - `protection-tags` (`refs/tags/v*`) : déplacement, suppression et force-push interdits, sans exception.
+  Suppression testée : `git push origin :refs/tags/v1.0.0` → refusée (`GH013: Cannot delete this tag`).
+
+Exception assumée : le rôle *Repository admin* peut contourner la règle **uniquement via une PR** (`bypass_mode: pull_request`),
+jamais par push direct. Avec un groupe d'une seule personne, personne ne peut approuver les PR (GitHub interdit d'approuver
+sa propre PR) : sans cette exception, aucun merge ne serait possible. Dès qu'un second relecteur (formateur) est Code Owner,
+l'exception est à retirer pour que la revue s'applique aussi aux administrateurs.
 
 ### 7. Sécurité du dépôt — PR #10
 - Hook `hooks/pre-commit` : refuse les lignes ajoutées contenant une clé AWS, un jeton GitHub/Slack, une clé d'API `sk-…`,
