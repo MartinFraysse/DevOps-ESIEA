@@ -1,5 +1,7 @@
 # DevOps-ESIEA
 
+[![CI](https://github.com/MartinFraysse/DevOps-ESIEA/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MartinFraysse/DevOps-ESIEA/actions/workflows/ci.yml)
+
 Dépôt des ateliers du **Bloc DevOps** — ESIEA S9.
 
 ## Ateliers
@@ -78,6 +80,12 @@ Après chaque clone :
 ```bash
 git config core.hooksPath hooks
 ```
+
+## Intégration continue
+
+Le workflow `.github/workflows/ci.yml` se lance sur chaque pull request et sur chaque push vers `main`.
+Il exécute d'abord `lint` (flake8), puis, si le style est correct, `test` (pytest avec couverture)
+sur Python 3.10, 3.11 et 3.12 en parallèle ; les 4 checks sont obligatoires pour merger sur `main`.
 
 ## Membres
 
