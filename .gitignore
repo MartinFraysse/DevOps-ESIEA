@@ -33,6 +33,12 @@ target/
 __pycache__/
 *.pyc
 
+# --- Tests & couverture ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
 # --- Logs & fichiers temporaires ---
 *.log
 logs/
