@@ -7,10 +7,11 @@ Séance 1 du Bloc DevOps. Objectif : pratiquer les commandes Git avancées et le
 | Chemin | Rôle |
 |--------|------|
 | `src/calc.py` | Petite calculatrice servant de support au bisect et au cherry-pick |
+| `CONTRIBUTING.md` | Fichier support du rebase interactif (étape 2) et du conflit provoqué (étape 3) |
 | `preuves/` | Traces de la séance : capture du rebase, journal du bisect, script de test |
 
 Fichiers créés pendant cette séance mais placés à la racine, car ils s'appliquent à tout le dépôt :
-`.github/CODEOWNERS`, `hooks/pre-commit`, `.mailmap`, `.gitignore`, `CONTRIBUTING.md`.
+`.github/CODEOWNERS`, `hooks/pre-commit`, `.gitignore`.
 
 Utilisation :
 
@@ -19,8 +20,8 @@ python3 atelier-1/src/calc.py add 2 3      # 5.0
 python3 atelier-1/src/calc.py mean 1 2 3 4 # 2.5
 ```
 
-> Pendant la séance, la calculatrice se trouvait dans `src/calc.py` à la racine : les SHA et PR cités ci-dessous
-> font référence à cet emplacement (`git log --follow atelier-1/src/calc.py` pour suivre l'historique).
+> Pendant la séance, `src/calc.py` et `CONTRIBUTING.md` se trouvaient à la racine : les SHA et PR cités ci-dessous
+> font référence à ces emplacements (`git log --follow <fichier>` pour suivre l'historique).
 
 ## Travail réalisé
 
@@ -34,7 +35,7 @@ nettoyée avant la PR avec `git rebase -i main` : `pick`, `squash`, `fixup`, `re
 Preuve : [`preuves/rebase-avant-apres.jpg`](preuves/rebase-avant-apres.jpg) (4 commits avant, 2 après).
 
 ### 3. Conflit de merge — PR #2 et #3
-`docs/titre-guide` et `docs/titre-contribuer`, parties du même commit, modifiaient la ligne 1 de `CONTRIBUTING.md`.
+`docs/titre-guide` et `docs/titre-contribuer`, parties du même commit, modifiaient la ligne 1 de [`CONTRIBUTING.md`](CONTRIBUTING.md).
 Après le merge de #2, le merge de `origin/main` dans la seconde branche a échoué ; résolution manuelle (commit e7d9e23), sans marqueur résiduel.
 **Cause** : deux titres concurrents. **Choix** : « Contribuer au projet », formulation orientée action.
 

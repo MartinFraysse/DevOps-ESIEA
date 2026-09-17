@@ -17,9 +17,7 @@ Chaque dossier contient son propre `README.md` qui documente le travail réalis�
 .
 ├── .github/CODEOWNERS   # propriétaires par zone (doit rester à la racine pour GitHub)
 ├── .gitignore           # exclusions communes à tous les ateliers
-├── .mailmap             # regroupe les identités Git de chaque membre
 ├── hooks/pre-commit     # hook anti-secret, appliqué à tout le dépôt
-├── CONTRIBUTING.md
 ├── atelier-1/
 └── atelier-2/
 ```
@@ -85,5 +83,5 @@ git config core.hooksPath hooks
 
 - Martin Fraysse — groupe d'une seule personne.
 
-Les commits apparaissent sous deux identités (commits locaux et squash-merges GitHub) :
-le fichier `.mailmap` les regroupe pour `git shortlog -sn`.
+Les commits arrivent sur `main` par squash-merge GitHub, sous l'identité `MartinFraysse` ; seul le commit initial
+porte l'identité locale `Martin`. `git shortlog -sn` affiche donc deux lignes pour une même personne.
