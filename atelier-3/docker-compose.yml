@@ -10,8 +10,10 @@ services:
       REDIS_PORT: "6379"
     networks:
       - backend
+    # Attend que Redis réponde vraiment (healthcheck OK), pas seulement que son conteneur soit démarré.
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
   redis:
     image: redis:7-alpine
@@ -19,6 +21,13 @@ services:
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis-data:/data
+    healthcheck:
+      # redis-cli est fourni par l'image ; grep échoue tant que Redis ne répond pas PONG (ex. : LOADING).
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     networks:
       - backend
     # Pas de "ports" : Redis n'est joignable que par les services du réseau backend, pas depuis l'hôte.
