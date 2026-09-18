@@ -294,3 +294,51 @@ secondes ; `web` n'est créé qu'une fois Redis `healthy`.
 | [`etape6-healthchecks-starting-healthy.png`](screens/etape6-healthchecks-starting-healthy.png) | `docker compose up -d --build`, puis `docker compose ps` deux fois à quelques secondes d'intervalle, puis `curl http://localhost:5000/visits` | Compose attend `redis-1 Healthy` avant `web-1 Started` (Redis `Up 7 s`, `web` `Up 2 s` : `web` a attendu) ; `web` passe de `health: starting` à `healthy` ; `/visits` reprend à 5 grâce au volume |
 
 ![Healthchecks : starting puis healthy](screens/etape6-healthchecks-starting-healthy.png)
+
+## Étape 7 — Publication sur un registry (ghcr.io)
+
+Image publiée : **[`ghcr.io/martinfraysse/devops-web`](https://github.com/users/MartinFraysse/packages/container/package/devops-web)**,
+package **public**, avec deux tags pointant vers la même image (digest `sha256:661d0cc2…`) :
+
+| Tag | Rôle |
+|-----|------|
+| `1.0.0` | Version figée : permet de revenir précisément à cette image en cas de problème |
+| `latest` | Dernière version publiée |
+
+```bash
+# Authentification (token GitHub "classic", scope write:packages ; jamais écrit dans un fichier du dépôt)
+echo "$GHCR_TOKEN" | docker login ghcr.io -u MartinFraysse --password-stdin
+
+cd atelier-3
+docker build -t ghcr.io/martinfraysse/devops-web:1.0.0 .
+docker tag ghcr.io/martinfraysse/devops-web:1.0.0 ghcr.io/martinfraysse/devops-web:latest
+docker push ghcr.io/martinfraysse/devops-web:1.0.0
+docker push ghcr.io/martinfraysse/devops-web:latest
+```
+
+Points d'attention :
+
+- Le nom d'image doit être **en minuscules** (`martinfraysse`, pas `MartinFraysse`).
+- Un package ghcr.io est **privé par défaut** : il a été passé en public (Package settings → Change visibility).
+- Le `LABEL org.opencontainers.image.source` du `Dockerfile` indique le dépôt d'origine de l'image.
+
+**Récupérable depuis zéro :** après `docker logout` (plus aucun identifiant) et suppression de l'image locale,
+`docker pull` la retélécharge : même digest `sha256:661d0cc2…`, même taille (217 Mo).
+
+```bash
+docker pull ghcr.io/martinfraysse/devops-web:1.0.0
+```
+
+### Preuves
+
+| Fichier | Origine | Ce qu'il montre |
+|---------|---------|-----------------|
+| [`etape7-docker-push.png`](screens/etape7-docker-push.png) | `docker push` des tags `1.0.0` puis `latest` | Couches envoyées, puis `Layer already exists` pour `latest` : les deux tags ont le même digest |
+| [`etape7-package-ghcr-public.png`](screens/etape7-package-ghcr-public.png) | Page du package sur GitHub (profil → Packages → `devops-web`) | Package **Public**, tags `latest` et `1.0.0` |
+| [`etape7-rmi-pull-depuis-zero.png`](screens/etape7-rmi-pull-depuis-zero.png) | `docker logout ghcr.io`, `docker rmi` des deux tags, `docker images` (vide), `docker pull …:1.0.0`, `docker images` | L'image est retéléchargée sans authentification, avec le même digest : récupérable depuis n'importe quelle machine |
+
+![docker push](screens/etape7-docker-push.png)
+
+![Package public sur ghcr.io](screens/etape7-package-ghcr-public.png)
+
+![rmi puis pull depuis zéro](screens/etape7-rmi-pull-depuis-zero.png)
