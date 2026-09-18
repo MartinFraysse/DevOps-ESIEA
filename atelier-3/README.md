@@ -9,9 +9,11 @@ Séance 3 du Bloc DevOps. Objectif : conteneuriser l'application Flask de la sé
 |--------|------|
 | `app.py` | Application Flask fournie (starter-app) : `alert_threshold`, `sanitize_input`, `/health`, `/status` |
 | `test_app.py` | Tests unitaires pytest fournis |
-| `requirements.txt` | Dépendances figées : flask, redis, pytest, pytest-cov, flake8, fakeredis |
+| `requirements.txt` | Dépendances d'exécution, embarquées dans l'image : flask, redis, gunicorn |
+| `requirements-dev.txt` | Dépendances de développement (tests, lint), en plus des précédentes |
 | `.flake8` | Configuration du lint (`max-line-length = 100`) |
-| `Dockerfile` | Image de l'application |
+| `Dockerfile` | Image de l'application, build multi-stage (étape 3) |
+| `Dockerfile.naive` | Image naïve des étapes 1-2, conservée pour la comparaison de taille |
 | `.dockerignore` | Liste blanche des fichiers envoyés au build (étape 2) |
 | `screens/` | Captures d'écran servant de preuves pour chaque étape |
 
@@ -111,3 +113,40 @@ un nouveau fichier est ajouté au dossier plus tard.
 ![Avant : taille, couches et whoami root](screens/etape2-avant-images-history-whoami.png)
 
 ![Après : whoami appuser, contenu de /app, /health](screens/etape2-apres-whoami-ls-health.png)
+
+## Étape 3 — Multi-stage build et gunicorn
+
+Le Dockerfile naïf est conservé sous `Dockerfile.naive` ; le `Dockerfile` est réécrit en deux stages :
+
+| Stage | Image | Rôle |
+|-------|-------|------|
+| `builder` | `python:3.12` (complète) | Crée un venv dans `/opt/venv` et y installe les dépendances |
+| final | `python:3.12-slim` | Récupère **uniquement** `/opt/venv` via `COPY --from=builder`, plus `app.py` |
+
+L'image finale n'hérite de rien d'autre du builder : ni compilateurs, ni outils de build, ni cache pip
+(`--no-cache-dir`).
+
+**Piège évité :** chaque stage a son propre environnement. Le `ENV PATH="/opt/venv/bin:$PATH"` du builder n'existe
+plus dans le stage final ; il est redéclaré, sinon `gunicorn` serait introuvable au démarrage.
+
+**Serveur WSGI :** le serveur de développement Flask est remplacé par `gunicorn` (2 workers). Le serveur intégré
+de Flask n'est pas conçu pour la production (mono-processus, mode debug exposant une console d'exécution de code).
+
+**Dépendances séparées :** `requirements.txt` ne contient plus que ce qui sert à l'exécution (flask, redis,
+gunicorn). Les outils de test et de lint passent dans `requirements-dev.txt`, qui n'est pas installé dans l'image.
+
+```bash
+cd atelier-3
+docker build -t devops-web:multistage .
+docker run -d --name web -p 5000:5000 devops-web:multistage
+```
+
+Pour le développement local : `pip install -r requirements-dev.txt`.
+
+### Preuves
+
+| Fichier | Origine | Ce qu'il montre |
+|---------|---------|-----------------|
+| [`etape3-run-gunicorn-whoami-health.png`](screens/etape3-run-gunicorn-whoami-health.png) | `docker run -d --name web -p 5000:5000 devops-web:multistage`, puis `docker logs web`, `docker exec web whoami`, `curl http://localhost:5000/health` | L'app tourne sous **gunicorn 23.0.0** (2 workers, plus de warning « development server »), en `appuser`, et répond sur `/health` |
+
+![Multi-stage : gunicorn, appuser, /health](screens/etape3-run-gunicorn-whoami-health.png)
