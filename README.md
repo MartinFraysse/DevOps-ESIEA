@@ -10,6 +10,7 @@ Dépôt des ateliers du **Bloc DevOps** — ESIEA S9.
 |---------|--------|-------|
 | [`atelier-1/`](atelier-1/) | 1 | Git avancé & collaboratif |
 | [`atelier-2/`](atelier-2/) | 2 | Pipeline CI avec GitHub Actions |
+| [`atelier-3/`](atelier-3/) | 3 | Conteneurisation Docker |
 
 Chaque dossier contient son propre `README.md` qui documente le travail réalisé pendant la séance.
 
@@ -23,7 +24,8 @@ Chaque dossier contient son propre `README.md` qui documente le travail réalis�
 ├── .gitignore                 # exclusions communes à tous les ateliers
 ├── hooks/pre-commit           # hook anti-secret, appliqué à tout le dépôt
 ├── atelier-1/
-└── atelier-2/
+├── atelier-2/
+└── atelier-3/
 ```
 
 Les fichiers de la racine s'appliquent à tout le dépôt ; tout ce qui est propre à une séance vit dans son dossier.
