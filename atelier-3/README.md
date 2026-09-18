@@ -7,13 +7,14 @@ Séance 3 du Bloc DevOps. Objectif : conteneuriser l'application Flask de la sé
 
 | Chemin | Rôle |
 |--------|------|
-| `app.py` | Application Flask fournie (starter-app) : `alert_threshold`, `sanitize_input`, `/health`, `/status` |
-| `test_app.py` | Tests unitaires pytest fournis |
+| `app.py` | Application Flask : `alert_threshold`, `sanitize_input`, `/health`, `/status` (fournis), `get_redis_client` et `/visits` (étape 5) |
+| `test_app.py` | Tests unitaires pytest : 4 fournis + test de `/visits` avec un faux Redis (`fakeredis`) |
 | `requirements.txt` | Dépendances d'exécution, embarquées dans l'image : flask, redis, gunicorn |
 | `requirements-dev.txt` | Dépendances de développement (tests, lint), en plus des précédentes |
 | `.flake8` | Configuration du lint (`max-line-length = 100`) |
 | `Dockerfile` | Image de l'application, build multi-stage (étape 3) |
 | `Dockerfile.naive` | Image naïve des étapes 1-2, conservée pour la comparaison de taille |
+| `docker-compose.yml` | Stack `web` + `redis`, réseau dédié et volume nommé (étape 5) |
 | `.dockerignore` | Liste blanche des fichiers envoyés au build (étape 2) |
 | `screens/` | Captures d'écran servant de preuves pour chaque étape |
 
@@ -186,3 +187,60 @@ Ces valeurs dépendent des versions des images de base du jour ; elles ont été
 | [`etape4-comparaison-tailles.png`](screens/etape4-comparaison-tailles.png) | `docker images devops-web`, après rebuild `--no-cache` des deux images depuis `atelier-3/` | 1,64 Go (naïve) contre 217 Mo (multi-stage) |
 
 ![Comparaison des tailles](screens/etape4-comparaison-tailles.png)
+
+## Étape 5 — Docker Compose multi-services et `/visits`
+
+### Endpoint `/visits`
+
+Le compteur est stocké dans Redis et non en mémoire du conteneur `web` : il ne repart pas de zéro quand `web`
+redémarre. `get_redis_client()` n'était pas présente dans la starter-app ; elle a été écrite à partir de
+l'environnement (`REDIS_HOST`, `REDIS_PORT`) pour ne rien coder en dur :
+
+```python
+def get_redis_client():
+    return redis.Redis(
+        host=os.environ.get("REDIS_HOST", "redis"),
+        port=int(os.environ.get("REDIS_PORT", "6379")),
+        decode_responses=True,
+    )
+
+
+@app.route("/visits")
+def visits():
+    count = get_redis_client().incr("visits")
+    return jsonify(visits=count), 200
+```
+
+`INCR` est atomique côté Redis : deux requêtes simultanées (sur les 2 workers gunicorn) ne peuvent pas lire la même
+valeur et perdre une visite. Un test unitaire vérifie l'incrément avec `fakeredis`, sans vrai serveur Redis.
+
+### `docker-compose.yml`
+
+| Élément | Choix | Pourquoi |
+|---------|-------|----------|
+| `web` | construit depuis le `Dockerfile` multi-stage, port 5000 publié | notre application |
+| `redis` | image officielle `redis:7-alpine`, **aucun port publié** | joignable uniquement par `web`, pas depuis l'hôte |
+| réseau `backend` | réseau dédié aux deux services | chaque service est joignable par son **nom** grâce au DNS interne de Docker |
+| `REDIS_HOST: redis` | nom du service | `localhost` désignerait le conteneur `web` lui-même ; une IP change à chaque recréation |
+| volume nommé `redis-data` → `/data` | + `--appendonly yes` | les données Redis survivent à l'arrêt ou à la suppression des conteneurs |
+
+```bash
+cd atelier-3
+docker compose config        # valide le fichier avant de démarrer
+docker compose up -d --build
+curl http://localhost:5000/visits
+```
+
+### Preuves
+
+| Fichier | Origine | Ce qu'il montre |
+|---------|---------|-----------------|
+| [`etape5-compose-up-ps.png`](screens/etape5-compose-up-ps.png) | Fin de `docker compose up -d --build`, puis `docker compose ps` | Création du réseau `atelier-3_backend` et du volume `atelier-3_redis-data` ; les 2 services `Up`, seul `web` publie un port (Redis : `6379/tcp` interne uniquement) |
+| [`etape5-visits-increment.png`](screens/etape5-visits-increment.png) | 3 × `curl http://localhost:5000/visits` | Le compteur s'incrémente : 1, 2, 3 — `web` joint bien Redis par son nom de service |
+| [`etape5-visits-apres-restart-web.png`](screens/etape5-visits-apres-restart-web.png) | `docker compose restart web`, puis `curl http://localhost:5000/visits` | Le compteur reprend à **4** et non à 1 : la valeur survit au redémarrage du seul conteneur `web` |
+
+![compose up et ps](screens/etape5-compose-up-ps.png)
+
+![/visits s'incrémente](screens/etape5-visits-increment.png)
+
+![/visits après restart de web](screens/etape5-visits-apres-restart-web.png)
