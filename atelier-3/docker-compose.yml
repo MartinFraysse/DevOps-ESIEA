@@ -1,0 +1,30 @@
+services:
+  web:
+    build: .
+    image: devops-web:latest
+    ports:
+      - "5000:5000"
+    environment:
+      # Nom du service Compose, résolu par le DNS interne du réseau : ni localhost, ni IP fixe.
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    networks:
+      - backend
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    # AOF : chaque écriture est journalisée sur disque, le compteur survit à un arrêt de Redis.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend
+    # Pas de "ports" : Redis n'est joignable que par les services du réseau backend, pas depuis l'hôte.
+
+networks:
+  backend:
+
+volumes:
+  redis-data:
