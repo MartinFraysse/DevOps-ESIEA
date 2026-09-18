@@ -1,0 +1,5 @@
+# Liste blanche : on exclut tout, puis on ne réautorise que ce qui sert à l'exécution.
+# Évite d'embarquer .git, .env, .venv, caches, tests ou captures d'écran dans l'image.
+*
+!app.py
+!requirements.txt
