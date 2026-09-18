@@ -244,3 +244,53 @@ curl http://localhost:5000/visits
 ![/visits s'incrémente](screens/etape5-visits-increment.png)
 
 ![/visits après restart de web](screens/etape5-visits-apres-restart-web.png)
+
+## Étape 6 — Healthchecks et dépendances entre services
+
+`depends_on` seul ne garantit que l'**ordre de démarrage** : `web` pouvait démarrer alors que Redis n'acceptait
+pas encore de connexions. Chaque service a maintenant une sonde de santé, et `web` attend que Redis soit
+**healthy**.
+
+**`web` — `HEALTHCHECK` dans le `Dockerfile`** : `curl` et `wget` sont absents de `python:3.12-slim`, la sonde
+utilise donc Python lui-même (déjà présent dans l'image) :
+
+```dockerfile
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2)"]
+```
+
+`urlopen` lève une exception (code de sortie 1) si `/health` ne répond pas ou renvoie une erreur HTTP. La sonde étant
+dans l'image, elle s'applique aussi en dehors de Compose (`docker run`).
+
+**`redis` — healthcheck dans `docker-compose.yml`** :
+
+```yaml
+healthcheck:
+  test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+  interval: 5s
+  timeout: 3s
+  retries: 5
+  start_period: 5s
+```
+
+`redis-cli` est fourni par l'image ; le `grep` fait échouer la sonde tant que Redis ne répond pas `PONG`
+(par exemple `LOADING` pendant le rechargement de l'AOF).
+
+**Dépendance conditionnée** :
+
+```yaml
+depends_on:
+  redis:
+    condition: service_healthy
+```
+
+Au démarrage, les deux services passent par `health: starting` avant d'atteindre `healthy` après quelques
+secondes ; `web` n'est créé qu'une fois Redis `healthy`.
+
+### Preuves
+
+| Fichier | Origine | Ce qu'il montre |
+|---------|---------|-----------------|
+| [`etape6-healthchecks-starting-healthy.png`](screens/etape6-healthchecks-starting-healthy.png) | `docker compose up -d --build`, puis `docker compose ps` deux fois à quelques secondes d'intervalle, puis `curl http://localhost:5000/visits` | Compose attend `redis-1 Healthy` avant `web-1 Started` (Redis `Up 7 s`, `web` `Up 2 s` : `web` a attendu) ; `web` passe de `health: starting` à `healthy` ; `/visits` reprend à 5 grâce au volume |
+
+![Healthchecks : starting puis healthy](screens/etape6-healthchecks-starting-healthy.png)
