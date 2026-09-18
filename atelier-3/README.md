@@ -150,3 +150,39 @@ Pour le développement local : `pip install -r requirements-dev.txt`.
 | [`etape3-run-gunicorn-whoami-health.png`](screens/etape3-run-gunicorn-whoami-health.png) | `docker run -d --name web -p 5000:5000 devops-web:multistage`, puis `docker logs web`, `docker exec web whoami`, `curl http://localhost:5000/health` | L'app tourne sous **gunicorn 23.0.0** (2 workers, plus de warning « development server »), en `appuser`, et répond sur `/health` |
 
 ![Multi-stage : gunicorn, appuser, /health](screens/etape3-run-gunicorn-whoami-health.png)
+
+## Étape 4 — Mesure du gain avant / après
+
+Les deux images ont été reconstruites de zéro juste avant la mesure, sur la même machine, pour comparer les
+Dockerfiles actuels et non d'anciennes images :
+
+```bash
+docker build --no-cache -f Dockerfile.naive -t devops-web:naive .
+docker build --no-cache -t devops-web:multistage .
+docker images devops-web
+```
+
+| Image | Dockerfile | Taille sur disque | Taille compressée (téléchargée) |
+|-------|------------|-------------------|---------------------------------|
+| `devops-web:naive` | `Dockerfile.naive` (étapes 1-2) | **1,64 Go** | 423 Mo |
+| `devops-web:multistage` | `Dockerfile` (étape 3) | **217 Mo** | 53,1 Mo |
+| **Gain** | | **−1,42 Go, soit −87 % (image ~7,5× plus légère)** | **−370 Mo, soit −87 %** |
+
+### D'où vient l'écart
+
+- **Image de base** : l'essentiel du gain. `python:3.12` embarque compilateurs, en-têtes et outils de build
+  (la couche de 696 Mo vue à l'étape 2) ; le stage final part de `python:3.12-slim`, qui n'en contient aucun.
+- **Stage builder abandonné** : seul `/opt/venv` est rapatrié par `COPY --from=builder`, le reste du builder
+  ne fait pas partie de l'image finale.
+- **Dépendances d'exécution uniquement** : pytest, pytest-cov, flake8 et fakeredis ne sont plus installés.
+- **Pas de cache pip** : `--no-cache-dir` dans le builder.
+
+Ces valeurs dépendent des versions des images de base du jour ; elles ont été mesurées le 18/09/2026.
+
+### Preuves
+
+| Fichier | Origine | Ce qu'il montre |
+|---------|---------|-----------------|
+| [`etape4-comparaison-tailles.png`](screens/etape4-comparaison-tailles.png) | `docker images devops-web`, après rebuild `--no-cache` des deux images depuis `atelier-3/` | 1,64 Go (naïve) contre 217 Mo (multi-stage) |
+
+![Comparaison des tailles](screens/etape4-comparaison-tailles.png)
