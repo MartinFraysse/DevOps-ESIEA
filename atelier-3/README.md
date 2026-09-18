@@ -1,161 +1,133 @@
 # Atelier 3 — Conteneurisation Docker
 
-Séance 3 du Bloc DevOps. Objectif : conteneuriser l'application Flask de la séance 2, optimiser l'image
-(non-root, multi-stage), orchestrer `web` + `redis` avec Docker Compose et publier l'image sur un registry.
+Dans cette séance, j'ai mis l'application Flask de la séance 2 dans une image Docker. Ensuite, je l'ai
+allégée et sécurisée, je l'ai lancée avec Redis grâce à Docker Compose, et je l'ai publiée sur ghcr.io.
 
-## Contenu du dossier
+## Lancer le projet
 
-| Chemin | Rôle |
-|--------|------|
-| `app.py` | Application Flask : `alert_threshold`, `sanitize_input`, `/health`, `/status` (fournis), `get_redis_client` et `/visits` (étape 5) |
-| `test_app.py` | Tests unitaires pytest : 4 fournis + test de `/visits` avec un faux Redis (`fakeredis`) |
-| `requirements.txt` | Dépendances d'exécution, embarquées dans l'image : flask, redis, gunicorn |
-| `requirements-dev.txt` | Dépendances de développement (tests, lint), en plus des précédentes |
-| `.flake8` | Configuration du lint (`max-line-length = 100`) |
-| `Dockerfile` | Image de l'application, build multi-stage (étape 3) |
-| `Dockerfile.naive` | Image naïve des étapes 1-2, conservée pour la comparaison de taille |
-| `docker-compose.yml` | Stack `web` + `redis`, réseau dédié et volume nommé (étape 5) |
-| `.dockerignore` | Liste blanche des fichiers envoyés au build (étape 2) |
-| `screens/` | Captures d'écran servant de preuves pour chaque étape |
-
-## Étape 1 — Premier Dockerfile naïf
-
-Premier jet volontairement simple : une seule étape, image complète `python:3.12`, on copie le code, on installe
-les dépendances, on démarre l'application.
-
-```dockerfile
-FROM python:3.12
-WORKDIR /app
-COPY . .
-RUN pip install -r requirements.txt
-EXPOSE 5000
-CMD ["flask", "--app", "app", "run", "--host=0.0.0.0", "--port=5000"]
-```
-
-**Piège évité :** le `app.run(debug=True)` de `app.py` écoute par défaut sur `127.0.0.1`, c'est-à-dire
-uniquement à l'intérieur du conteneur. Le conteneur tournerait sans erreur mais resterait injoignable depuis
-l'hôte, même avec `-p`. On démarre donc Flask avec `--host=0.0.0.0` pour écouter sur toutes les interfaces
-du conteneur.
+Il faut Docker avec Compose (`docker version` et `docker compose version` doivent répondre).
 
 ```bash
-cd atelier-3
-docker build -t devops-web:naive .
-docker run -d --name web-naive -p 5000:5000 devops-web:naive
-curl http://localhost:5000/health
+git clone https://github.com/MartinFraysse/DevOps-ESIEA.git
+cd DevOps-ESIEA/atelier-3
+
+docker compose up -d --build   # construit l'image et lance web + redis
+docker compose ps              # après quelques secondes, les 2 services sont "healthy"
 ```
 
-### Preuves
+Pour tester :
 
-| Fichier | Origine | Ce qu'il montre |
-|---------|---------|-----------------|
-| [`etape1-docker-build.png`](screens/etape1-docker-build.png) | Fin de `docker build -t devops-web:naive .`, depuis `atelier-3/` | Image construite et taguée `devops-web:naive` |
-| [`etape1-docker-ps.png`](screens/etape1-docker-ps.png) | `docker ps`, après `docker run -d --name web-naive -p 5000:5000 devops-web:naive` | Conteneur `Up`, port publié `0.0.0.0:5000->5000/tcp` |
-| [`etape1-curl-health-status.png`](screens/etape1-curl-health-status.png) | `curl http://localhost:5000/health` et `/status`, lancés **depuis l'hôte** | `{"status":"ok"}` et le JSON de `/status` : l'application est joignable hors du conteneur |
+```bash
+curl http://localhost:5000/health   # {"status":"ok"}
+curl http://localhost:5000/visits   # {"visits":1}, puis 2, 3...
+```
+
+Pour arrêter : `docker compose down` (le compteur est gardé) ou `docker compose down -v` (le compteur est remis à zéro).
+
+**Construire seulement l'image :** `docker build -t devops-web .`
+
+**Utiliser l'image publiée :** elle est publique sur
+[`ghcr.io/martinfraysse/devops-web`](https://github.com/users/MartinFraysse/packages/container/package/devops-web),
+avec les tags `1.0.0` et `latest`.
+
+```bash
+docker pull ghcr.io/martinfraysse/devops-web:1.0.0
+```
+
+**Lancer les tests :** `pip install -r requirements-dev.txt` puis `pytest -v`.
+
+## Fichiers
+
+| Fichier | Rôle |
+|---------|------|
+| `app.py` | L'application Flask (j'ai ajouté `/visits`) |
+| `test_app.py` | Les tests (j'ai ajouté celui de `/visits`) |
+| `requirements.txt` | Ce dont l'app a besoin pour tourner : flask, redis, gunicorn |
+| `requirements-dev.txt` | En plus, les outils de test et de lint |
+| `Dockerfile` | L'image finale (multi-stage) |
+| `Dockerfile.naive` | La première version de l'image, gardée pour comparer les tailles |
+| `.dockerignore` | Les seuls fichiers envoyés à Docker pendant le build |
+| `docker-compose.yml` | Lance `web` et `redis` ensemble |
+| `screens/` | Mes captures d'écran pour chaque étape |
+
+## Checklist
+
+| Demandé | Fait | Preuve |
+|---------|------|--------|
+| Multi-stage, image plus légère, avec des chiffres | 1,64 Go → 217 Mo | Étape 4 |
+| Conteneur non-root, vérifié avec `whoami` | `appuser` | Étapes 2 et 3 |
+| `.dockerignore` | Oui | Étape 2 |
+| `HEALTHCHECK` qui passe `healthy` | Oui | Étape 6 |
+| Compose : web + redis, réseau, volume, `service_healthy` | Oui | Étapes 5 et 6 |
+| `/visits` garde sa valeur après un restart de `web` | 3 → 4 | Étape 5 |
+| Image publiée avec `1.0.0` + `latest`, récupérable depuis zéro | Oui | Étape 7 |
+| README avec build et lancement | Oui | Ce fichier |
+
+---
+
+## Étape 1 — Premier Dockerfile
+
+J'ai écrit un Dockerfile très simple : l'image `python:3.12`, je copie le code, j'installe les dépendances et je
+lance Flask. Il est gardé dans `Dockerfile.naive`.
+
+**Piège :** par défaut, Flask n'écoute que sur `127.0.0.1`, donc seulement à l'intérieur du conteneur. Même avec
+`-p 5000:5000`, on ne peut pas le joindre depuis la machine. J'ai donc lancé Flask avec `--host=0.0.0.0`.
+
+L'image est construite (`docker build -t devops-web:naive .`) :
 
 ![docker build](screens/etape1-docker-build.png)
 
+Le conteneur tourne, avec le port 5000 publié (`docker ps`) :
+
 ![docker ps](screens/etape1-docker-ps.png)
 
-![curl /health et /status depuis l'hôte](screens/etape1-curl-health-status.png)
+L'app répond depuis ma machine (`curl` sur `/health` et `/status`) :
 
-## Étape 2 — Mesurer, utilisateur non-root, `.dockerignore`
+![curl](screens/etape1-curl-health-status.png)
 
-### Mesure de l'image naïve
+## Étape 2 — Non-root et `.dockerignore`
 
-`docker images` : **1,64 Go** sur disque (423 Mo compressés). `docker history` montre que l'essentiel du poids
-vient de l'image de base `python:3.12`, pas de notre application :
+J'ai d'abord mesuré l'image. Elle fait **1,64 Go**. Avec `docker history`, on voit que presque tout ce poids vient
+de l'image de base `python:3.12` (par exemple 696 Mo d'outils de compilation). Notre code et nos dépendances ne
+pèsent qu'environ 30 Mo. Et le conteneur tournait en `root`.
 
-| Couche | Taille | Origine |
-|--------|--------|---------|
-| `apt-get install` (compilateurs, en-têtes, outils de build) | 696 Mo | image de base |
-| `apt-get install` (outils système) | 200 Mo | image de base |
-| Debian `trixie` (système de base) | 132 Mo | image de base |
-| Python 3.12 compilé | 71,9 Mo | image de base |
-| `pip install -r requirements.txt` | 30,2 Mo | notre Dockerfile |
-| `COPY . .` | 24,6 ko | notre Dockerfile |
+J'ai corrigé deux choses :
 
-Conclusion : ce n'est pas le code qu'il faut alléger mais l'image de base, pleine d'outils de compilation
-inutiles à l'exécution. C'est l'objet du multi-stage avec une image slim (étape 3).
+- **Un utilisateur `appuser`**, activé avec `USER`. Piège : `USER` doit venir **après** le `pip install`, sinon
+  l'installation n'a pas les droits et le build plante.
+- **Un `.dockerignore`** qui bloque tout sauf `app.py` et les `requirements`. Comme ça, `.git`, `.env` ou `.venv`
+  ne peuvent pas finir dans l'image.
 
-`docker exec web-naive whoami` répond **`root`** : le processus de l'application tourne avec tous les droits dans
-le conteneur.
+Avant : taille de l'image, couches, et `whoami` qui répond `root` :
 
-### Corrections
+![avant](screens/etape2-avant-images-history-whoami.png)
 
-**Utilisateur non-root** — ajouté au `Dockerfile` :
+Après : `whoami` répond `appuser`, `/app` ne contient que le nécessaire, et l'app marche toujours :
 
-```dockerfile
-RUN pip install -r requirements.txt
-RUN useradd --create-home --uid 1000 appuser
-USER appuser
-```
+![après](screens/etape2-apres-whoami-ls-health.png)
 
-Piège de l'ordre : `USER` doit venir **après** `pip install`. Placé avant, l'installation s'exécuterait en
-`appuser`, qui n'a pas le droit d'écrire dans le `site-packages` système, et le build échouerait. Les fichiers de
-`/app` restent propriété de `root` : `appuser` peut les lire et les exécuter, mais pas les modifier.
+## Étape 3 — Multi-stage et gunicorn
 
-**`.dockerignore`** — en liste blanche : tout est exclu, seuls les fichiers nécessaires à l'exécution sont
-réautorisés. Rien d'autre (`.git`, `.env`, `.venv`, caches, tests, captures) ne peut entrer dans l'image, même si
-un nouveau fichier est ajouté au dossier plus tard.
+J'ai réécrit le `Dockerfile` en deux parties :
 
-```
-*
-!app.py
-!requirements.txt
-```
+1. **`builder`** (`python:3.12`) : installe les dépendances dans un dossier `/opt/venv`.
+2. **Image finale** (`python:3.12-slim`) : récupère seulement `/opt/venv` avec `COPY --from=builder`, puis `app.py`.
 
-### Preuves
+Tout le reste du builder (compilateurs, cache...) n'est pas dans l'image finale.
 
-| Fichier | Origine | Ce qu'il montre |
-|---------|---------|-----------------|
-| [`etape2-avant-images-history-whoami.png`](screens/etape2-avant-images-history-whoami.png) | `docker images devops-web`, `docker history devops-web:naive`, `docker exec web-naive whoami` — image de l'étape 1 | Taille 1,64 Go, poids des couches, conteneur en `root` |
-| [`etape2-apres-whoami-ls-health.png`](screens/etape2-apres-whoami-ls-health.png) | Après rebuild : `docker exec web-naive whoami`, `docker exec web-naive ls -la /app`, `curl http://localhost:5000/health` | Processus en `appuser` ; `/app` ne contient que `app.py` et `requirements.txt` (appartenant à `root`) ; l'app répond toujours |
+J'ai aussi remplacé le serveur de dev de Flask par **gunicorn**, qui est fait pour la production. J'ai sorti les
+outils de test de `requirements.txt` pour ne pas les mettre dans l'image.
 
-![Avant : taille, couches et whoami root](screens/etape2-avant-images-history-whoami.png)
+**Piège :** chaque stage repart de zéro. La variable `PATH` déclarée dans le builder n'existe plus dans l'image
+finale, donc je l'ai redéclarée. Sans ça, `gunicorn` n'est pas trouvé.
 
-![Après : whoami appuser, contenu de /app, /health](screens/etape2-apres-whoami-ls-health.png)
+gunicorn démarre, le conteneur tourne en `appuser` et `/health` répond (`docker logs`, `whoami`, `curl`) :
 
-## Étape 3 — Multi-stage build et gunicorn
+![multi-stage](screens/etape3-run-gunicorn-whoami-health.png)
 
-Le Dockerfile naïf est conservé sous `Dockerfile.naive` ; le `Dockerfile` est réécrit en deux stages :
+## Étape 4 — Comparaison des tailles
 
-| Stage | Image | Rôle |
-|-------|-------|------|
-| `builder` | `python:3.12` (complète) | Crée un venv dans `/opt/venv` et y installe les dépendances |
-| final | `python:3.12-slim` | Récupère **uniquement** `/opt/venv` via `COPY --from=builder`, plus `app.py` |
-
-L'image finale n'hérite de rien d'autre du builder : ni compilateurs, ni outils de build, ni cache pip
-(`--no-cache-dir`).
-
-**Piège évité :** chaque stage a son propre environnement. Le `ENV PATH="/opt/venv/bin:$PATH"` du builder n'existe
-plus dans le stage final ; il est redéclaré, sinon `gunicorn` serait introuvable au démarrage.
-
-**Serveur WSGI :** le serveur de développement Flask est remplacé par `gunicorn` (2 workers). Le serveur intégré
-de Flask n'est pas conçu pour la production (mono-processus, mode debug exposant une console d'exécution de code).
-
-**Dépendances séparées :** `requirements.txt` ne contient plus que ce qui sert à l'exécution (flask, redis,
-gunicorn). Les outils de test et de lint passent dans `requirements-dev.txt`, qui n'est pas installé dans l'image.
-
-```bash
-cd atelier-3
-docker build -t devops-web:multistage .
-docker run -d --name web -p 5000:5000 devops-web:multistage
-```
-
-Pour le développement local : `pip install -r requirements-dev.txt`.
-
-### Preuves
-
-| Fichier | Origine | Ce qu'il montre |
-|---------|---------|-----------------|
-| [`etape3-run-gunicorn-whoami-health.png`](screens/etape3-run-gunicorn-whoami-health.png) | `docker run -d --name web -p 5000:5000 devops-web:multistage`, puis `docker logs web`, `docker exec web whoami`, `curl http://localhost:5000/health` | L'app tourne sous **gunicorn 23.0.0** (2 workers, plus de warning « development server »), en `appuser`, et répond sur `/health` |
-
-![Multi-stage : gunicorn, appuser, /health](screens/etape3-run-gunicorn-whoami-health.png)
-
-## Étape 4 — Mesure du gain avant / après
-
-Les deux images ont été reconstruites de zéro juste avant la mesure, sur la même machine, pour comparer les
-Dockerfiles actuels et non d'anciennes images :
+J'ai reconstruit les deux images de zéro (`--no-cache`) juste avant de les comparer :
 
 ```bash
 docker build --no-cache -f Dockerfile.naive -t devops-web:naive .
@@ -163,182 +135,83 @@ docker build --no-cache -t devops-web:multistage .
 docker images devops-web
 ```
 
-| Image | Dockerfile | Taille sur disque | Taille compressée (téléchargée) |
-|-------|------------|-------------------|---------------------------------|
-| `devops-web:naive` | `Dockerfile.naive` (étapes 1-2) | **1,64 Go** | 423 Mo |
-| `devops-web:multistage` | `Dockerfile` (étape 3) | **217 Mo** | 53,1 Mo |
-| **Gain** | | **−1,42 Go, soit −87 % (image ~7,5× plus légère)** | **−370 Mo, soit −87 %** |
+| Image | Taille |
+|-------|--------|
+| Naïve (étapes 1-2) | **1,64 Go** |
+| Multi-stage (étape 3) | **217 Mo** |
 
-### D'où vient l'écart
+L'image est **87 % plus légère**. La plus grosse différence vient de l'image `slim`, qui n'a pas les outils de
+compilation. Le reste vient des outils de test qu'on n'installe plus.
 
-- **Image de base** : l'essentiel du gain. `python:3.12` embarque compilateurs, en-têtes et outils de build
-  (la couche de 696 Mo vue à l'étape 2) ; le stage final part de `python:3.12-slim`, qui n'en contient aucun.
-- **Stage builder abandonné** : seul `/opt/venv` est rapatrié par `COPY --from=builder`, le reste du builder
-  ne fait pas partie de l'image finale.
-- **Dépendances d'exécution uniquement** : pytest, pytest-cov, flake8 et fakeredis ne sont plus installés.
-- **Pas de cache pip** : `--no-cache-dir` dans le builder.
+![comparaison](screens/etape4-comparaison-tailles.png)
 
-Ces valeurs dépendent des versions des images de base du jour ; elles ont été mesurées le 18/09/2026.
+## Étape 5 — Docker Compose avec Redis
 
-### Preuves
+J'ai ajouté une route `/visits` qui compte les visites. Le compteur est stocké dans Redis. Comme ça, il ne repart
+pas de zéro quand l'app redémarre. La fonction `get_redis_client()` n'était pas dans le zip, alors je l'ai écrite.
 
-| Fichier | Origine | Ce qu'il montre |
-|---------|---------|-----------------|
-| [`etape4-comparaison-tailles.png`](screens/etape4-comparaison-tailles.png) | `docker images devops-web`, après rebuild `--no-cache` des deux images depuis `atelier-3/` | 1,64 Go (naïve) contre 217 Mo (multi-stage) |
+Le `docker-compose.yml` lance deux services :
 
-![Comparaison des tailles](screens/etape4-comparaison-tailles.png)
+- **`web`** : notre image, sur le port 5000 ;
+- **`redis`** : l'image officielle `redis:7-alpine`, sans port publié car seul `web` a besoin de la joindre.
 
-## Étape 5 — Docker Compose multi-services et `/visits`
+Ils sont sur un **réseau `backend`**. `web` trouve Redis avec son nom : `redis`. On ne peut pas utiliser
+`localhost`, car ça désigne le conteneur `web` lui-même. Les données Redis sont dans un **volume `redis-data`**,
+donc elles restent même si on arrête les conteneurs.
 
-### Endpoint `/visits`
+Le réseau et le volume sont créés, et les 2 services tournent (`docker compose up`, puis `docker compose ps`) :
 
-Le compteur est stocké dans Redis et non en mémoire du conteneur `web` : il ne repart pas de zéro quand `web`
-redémarre. `get_redis_client()` n'était pas présente dans la starter-app ; elle a été écrite à partir de
-l'environnement (`REDIS_HOST`, `REDIS_PORT`) pour ne rien coder en dur :
+![compose](screens/etape5-compose-up-ps.png)
 
-```python
-def get_redis_client():
-    return redis.Redis(
-        host=os.environ.get("REDIS_HOST", "redis"),
-        port=int(os.environ.get("REDIS_PORT", "6379")),
-        decode_responses=True,
-    )
+Le compteur augmente à chaque appel :
 
+![visits](screens/etape5-visits-increment.png)
 
-@app.route("/visits")
-def visits():
-    count = get_redis_client().incr("visits")
-    return jsonify(visits=count), 200
-```
+Après `docker compose restart web`, le compteur continue à 4 au lieu de repartir à 1 :
 
-`INCR` est atomique côté Redis : deux requêtes simultanées (sur les 2 workers gunicorn) ne peuvent pas lire la même
-valeur et perdre une visite. Un test unitaire vérifie l'incrément avec `fakeredis`, sans vrai serveur Redis.
+![restart](screens/etape5-visits-apres-restart-web.png)
 
-### `docker-compose.yml`
+## Étape 6 — Healthchecks
 
-| Élément | Choix | Pourquoi |
-|---------|-------|----------|
-| `web` | construit depuis le `Dockerfile` multi-stage, port 5000 publié | notre application |
-| `redis` | image officielle `redis:7-alpine`, **aucun port publié** | joignable uniquement par `web`, pas depuis l'hôte |
-| réseau `backend` | réseau dédié aux deux services | chaque service est joignable par son **nom** grâce au DNS interne de Docker |
-| `REDIS_HOST: redis` | nom du service | `localhost` désignerait le conteneur `web` lui-même ; une IP change à chaque recréation |
-| volume nommé `redis-data` → `/data` | + `--appendonly yes` | les données Redis survivent à l'arrêt ou à la suppression des conteneurs |
+`depends_on` lance Redis avant `web`, mais ne vérifie pas que Redis est vraiment prêt. J'ai donc ajouté :
+
+- un **`HEALTHCHECK`** dans le `Dockerfile`, qui appelle `/health`. Il utilise Python, car `curl` n'existe pas
+  dans l'image slim ;
+- un **healthcheck sur Redis** avec `redis-cli ping` ;
+- **`condition: service_healthy`** : `web` attend que Redis soit prêt avant de démarrer.
+
+Au démarrage, `web` attend que Redis soit `Healthy`. Il est d'abord en `health: starting`, puis `healthy` après
+quelques secondes. Le compteur est toujours là grâce au volume :
+
+![healthchecks](screens/etape6-healthchecks-starting-healthy.png)
+
+## Étape 7 — Publication sur ghcr.io
+
+J'ai publié l'image sur ghcr.io avec deux tags :
+
+- **`1.0.0`** : une version fixe, pour pouvoir y revenir si besoin ;
+- **`latest`** : la dernière version.
 
 ```bash
-cd atelier-3
-docker compose config        # valide le fichier avant de démarrer
-docker compose up -d --build
-curl http://localhost:5000/visits
-```
-
-### Preuves
-
-| Fichier | Origine | Ce qu'il montre |
-|---------|---------|-----------------|
-| [`etape5-compose-up-ps.png`](screens/etape5-compose-up-ps.png) | Fin de `docker compose up -d --build`, puis `docker compose ps` | Création du réseau `atelier-3_backend` et du volume `atelier-3_redis-data` ; les 2 services `Up`, seul `web` publie un port (Redis : `6379/tcp` interne uniquement) |
-| [`etape5-visits-increment.png`](screens/etape5-visits-increment.png) | 3 × `curl http://localhost:5000/visits` | Le compteur s'incrémente : 1, 2, 3 — `web` joint bien Redis par son nom de service |
-| [`etape5-visits-apres-restart-web.png`](screens/etape5-visits-apres-restart-web.png) | `docker compose restart web`, puis `curl http://localhost:5000/visits` | Le compteur reprend à **4** et non à 1 : la valeur survit au redémarrage du seul conteneur `web` |
-
-![compose up et ps](screens/etape5-compose-up-ps.png)
-
-![/visits s'incrémente](screens/etape5-visits-increment.png)
-
-![/visits après restart de web](screens/etape5-visits-apres-restart-web.png)
-
-## Étape 6 — Healthchecks et dépendances entre services
-
-`depends_on` seul ne garantit que l'**ordre de démarrage** : `web` pouvait démarrer alors que Redis n'acceptait
-pas encore de connexions. Chaque service a maintenant une sonde de santé, et `web` attend que Redis soit
-**healthy**.
-
-**`web` — `HEALTHCHECK` dans le `Dockerfile`** : `curl` et `wget` sont absents de `python:3.12-slim`, la sonde
-utilise donc Python lui-même (déjà présent dans l'image) :
-
-```dockerfile
-HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=2)"]
-```
-
-`urlopen` lève une exception (code de sortie 1) si `/health` ne répond pas ou renvoie une erreur HTTP. La sonde étant
-dans l'image, elle s'applique aussi en dehors de Compose (`docker run`).
-
-**`redis` — healthcheck dans `docker-compose.yml`** :
-
-```yaml
-healthcheck:
-  test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
-  interval: 5s
-  timeout: 3s
-  retries: 5
-  start_period: 5s
-```
-
-`redis-cli` est fourni par l'image ; le `grep` fait échouer la sonde tant que Redis ne répond pas `PONG`
-(par exemple `LOADING` pendant le rechargement de l'AOF).
-
-**Dépendance conditionnée** :
-
-```yaml
-depends_on:
-  redis:
-    condition: service_healthy
-```
-
-Au démarrage, les deux services passent par `health: starting` avant d'atteindre `healthy` après quelques
-secondes ; `web` n'est créé qu'une fois Redis `healthy`.
-
-### Preuves
-
-| Fichier | Origine | Ce qu'il montre |
-|---------|---------|-----------------|
-| [`etape6-healthchecks-starting-healthy.png`](screens/etape6-healthchecks-starting-healthy.png) | `docker compose up -d --build`, puis `docker compose ps` deux fois à quelques secondes d'intervalle, puis `curl http://localhost:5000/visits` | Compose attend `redis-1 Healthy` avant `web-1 Started` (Redis `Up 7 s`, `web` `Up 2 s` : `web` a attendu) ; `web` passe de `health: starting` à `healthy` ; `/visits` reprend à 5 grâce au volume |
-
-![Healthchecks : starting puis healthy](screens/etape6-healthchecks-starting-healthy.png)
-
-## Étape 7 — Publication sur un registry (ghcr.io)
-
-Image publiée : **[`ghcr.io/martinfraysse/devops-web`](https://github.com/users/MartinFraysse/packages/container/package/devops-web)**,
-package **public**, avec deux tags pointant vers la même image (digest `sha256:661d0cc2…`) :
-
-| Tag | Rôle |
-|-----|------|
-| `1.0.0` | Version figée : permet de revenir précisément à cette image en cas de problème |
-| `latest` | Dernière version publiée |
-
-```bash
-# Authentification (token GitHub "classic", scope write:packages ; jamais écrit dans un fichier du dépôt)
-echo "$GHCR_TOKEN" | docker login ghcr.io -u MartinFraysse --password-stdin
-
-cd atelier-3
+docker login ghcr.io -u MartinFraysse   # avec un token GitHub (droit write:packages)
 docker build -t ghcr.io/martinfraysse/devops-web:1.0.0 .
 docker tag ghcr.io/martinfraysse/devops-web:1.0.0 ghcr.io/martinfraysse/devops-web:latest
 docker push ghcr.io/martinfraysse/devops-web:1.0.0
 docker push ghcr.io/martinfraysse/devops-web:latest
 ```
 
-Points d'attention :
+Deux pièges : le nom doit être en **minuscules**, et le package est **privé par défaut**. Je l'ai donc passé en
+public dans ses paramètres.
 
-- Le nom d'image doit être **en minuscules** (`martinfraysse`, pas `MartinFraysse`).
-- Un package ghcr.io est **privé par défaut** : il a été passé en public (Package settings → Change visibility).
-- Le `LABEL org.opencontainers.image.source` du `Dockerfile` indique le dépôt d'origine de l'image.
+Les deux tags sont envoyés et ont le même digest, donc c'est bien la même image :
 
-**Récupérable depuis zéro :** après `docker logout` (plus aucun identifiant) et suppression de l'image locale,
-`docker pull` la retélécharge : même digest `sha256:661d0cc2…`, même taille (217 Mo).
+![push](screens/etape7-docker-push.png)
 
-```bash
-docker pull ghcr.io/martinfraysse/devops-web:1.0.0
-```
+Le package est public, avec les tags `latest` et `1.0.0` :
 
-### Preuves
+![package](screens/etape7-package-ghcr-public.png)
 
-| Fichier | Origine | Ce qu'il montre |
-|---------|---------|-----------------|
-| [`etape7-docker-push.png`](screens/etape7-docker-push.png) | `docker push` des tags `1.0.0` puis `latest` | Couches envoyées, puis `Layer already exists` pour `latest` : les deux tags ont le même digest |
-| [`etape7-package-ghcr-public.png`](screens/etape7-package-ghcr-public.png) | Page du package sur GitHub (profil → Packages → `devops-web`) | Package **Public**, tags `latest` et `1.0.0` |
-| [`etape7-rmi-pull-depuis-zero.png`](screens/etape7-rmi-pull-depuis-zero.png) | `docker logout ghcr.io`, `docker rmi` des deux tags, `docker images` (vide), `docker pull …:1.0.0`, `docker images` | L'image est retéléchargée sans authentification, avec le même digest : récupérable depuis n'importe quelle machine |
+Pour vérifier qu'on peut la récupérer depuis zéro, je me suis déconnecté (`docker logout`), j'ai supprimé l'image,
+puis je l'ai retéléchargée avec `docker pull`. Ça marche, avec le même digest :
 
-![docker push](screens/etape7-docker-push.png)
-
-![Package public sur ghcr.io](screens/etape7-package-ghcr-public.png)
-
-![rmi puis pull depuis zéro](screens/etape7-rmi-pull-depuis-zero.png)
+![pull](screens/etape7-rmi-pull-depuis-zero.png)
