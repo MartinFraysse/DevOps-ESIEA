@@ -61,3 +61,33 @@ jobs:
         with:
           name: coverage-${{ matrix.python-version }}
           path: atelier-4/htmlcov/
+
+  build-and-push:
+    needs: test
+    # Seulement sur un push sur main : pas d'image publiée pour chaque pull request
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v7
+
+      - name: Connexion à ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build et push de l'image
+        uses: docker/build-push-action@v7
+        with:
+          # working-directory ne marche pas pour les "uses", il faut donner le dossier
+          context: atelier-4
+          push: true
+          build-args: GIT_SHA=${{ github.sha }}
+          tags: |
+            ghcr.io/martinfraysse/devops-web:${{ github.sha }}
+            ghcr.io/martinfraysse/devops-web:latest
