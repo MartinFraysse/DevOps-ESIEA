@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Déploiement blue/green avec rollback automatique.
 #
-# Usage : ./deploy/deploy.sh <tag de l'image>
-#   ex :  ./deploy/deploy.sh local
+# Usage : ./deploy/deploy.sh <tag de l'image> <sha attendu>
+#   ex :  ./deploy/deploy.sh local "$(git rev-parse HEAD)"
 #
 # 1. regarde quelle couleur est active (fichier deploy/.active-color)
 # 2. lance la nouvelle version sur l'autre couleur
-# 3. attend qu'elle réponde sur /health, puis vérifie /status (smoke test)
+# 3. attend qu'elle réponde sur /health, puis vérifie /status (smoke test : couleur + SHA du commit)
 # 4. si tout est bon : nginx passe sur la nouvelle couleur, puis on arrête l'ancienne
 #    sinon : on arrête la nouvelle et l'ancienne couleur reste active
 
@@ -15,7 +15,8 @@ set -euo pipefail
 # On se place dans atelier-4/, là où est le docker-compose.yml
 cd "$(dirname "$0")/.."
 
-TAG="${1:?Usage : ./deploy/deploy.sh <tag de l image>}"
+TAG="${1:?Usage : ./deploy/deploy.sh <tag de l image> <sha attendu>}"
+SHA_ATTENDU="${2:?Usage : ./deploy/deploy.sh <tag de l image> <sha attendu>}"
 export IMAGE_TAG="$TAG"
 
 STATE_FILE=deploy/.active-color
@@ -74,6 +75,12 @@ STATUS=$(appel status 2> /dev/null || true)
 COULEUR=$(echo "$STATUS" | jq -r '.deploy_color' 2> /dev/null || true)
 if [ "$COULEUR" != "$NEW" ]; then
     echec "/status renvoie la couleur '$COULEUR' au lieu de '$NEW'"
+fi
+
+# Smoke test : /status doit aussi renvoyer le SHA du commit qu'on veut déployer
+COMMIT=$(echo "$STATUS" | jq -r '.commit' 2> /dev/null || true)
+if [ "$COMMIT" != "$SHA_ATTENDU" ]; then
+    echec "/status renvoie le commit '$COMMIT' au lieu de '$SHA_ATTENDU'"
 fi
 echo "Smoke test OK : $STATUS"
 

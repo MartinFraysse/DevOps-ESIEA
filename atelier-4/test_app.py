@@ -43,6 +43,7 @@ def test_status_endpoint():
     assert response.status_code == 200
     assert response.get_json()["service"] == "projet-devops-groupe-demo"
     assert "deploy_color" in response.get_json()
+    assert "commit" in response.get_json()
 
 
 def test_visits_endpoint_increments_counter(monkeypatch):
