@@ -45,3 +45,46 @@ Deux points de config à ne pas oublier :
 ![Manage Actions access](screens/etape2-actions-access.png)
 
 Le Dockerfile reçoit aussi le SHA du commit (`--build-arg GIT_SHA`), il servira à l'étape 8.
+
+Après le merge, le pipeline a tourné sur `main` : `build-and-push` est passé après `test`, et l'image est sur
+ghcr.io avec le tag du SHA et `latest` (même image) :
+
+![package avec les tags sha et latest](screens/etape2-package-tags.png)
+
+## Étape 3 — Environnement blue/green
+
+Le `docker-compose.yml` a maintenant 4 services :
+
+| Service | Démarre | Rôle |
+|---------|---------|------|
+| `redis` | toujours | la base, comme à l'atelier 3 |
+| `nginx` | toujours | reçoit le trafic sur le port 8080 et l'envoie vers la couleur active |
+| `app-blue` | avec `--profile blue` | l'app avec `DEPLOY_COLOR=blue` |
+| `app-green` | avec `--profile green` | la même app avec `DEPLOY_COLOR=green` |
+
+Les `profiles` sont seulement sur les deux apps : `redis` et `nginx` doivent tourner quelle que soit la couleur.
+Les apps n'ont plus de `ports`, tout passe par nginx.
+
+`/status` renvoie maintenant la couleur (`deploy_color`), ce qui permet de voir vers quelle app nginx envoie le
+trafic.
+
+La config de nginx est créée à partir de `deploy/nginx/app.conf.template`, en remplaçant `COLOR` par la couleur
+active. Le fichier obtenu, `deploy/nginx/active.conf`, n'est pas dans Git : le script de l'étape 4 le réécrit à
+chaque bascule. Deux pièges :
+
+- nginx refuse de démarrer si l'app vers laquelle il envoie le trafic n'est pas lancée. Avec `resolver` et une
+  variable dans `proxy_pass`, nginx ne cherche l'app qu'au moment de la requête : il démarre quand même et
+  renvoie 502 en attendant ;
+- il faut monter le **dossier** `deploy/nginx` dans nginx, pas juste le fichier, sinon nginx ne voit pas les
+  changements quand le fichier est réécrit.
+
+Pour tester en local :
+
+```bash
+docker build -t ghcr.io/martinfraysse/devops-web:local .
+sed "s/COLOR/blue/" deploy/nginx/app.conf.template > deploy/nginx/active.conf
+export IMAGE_TAG=local
+docker compose up -d                   # redis + nginx seulement
+docker compose --profile blue up -d    # + app-blue
+curl localhost:8080/status             # {"deploy_color":"blue", ...}
+```

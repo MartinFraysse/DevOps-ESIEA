@@ -16,7 +16,7 @@ FROM python:3.12-slim
 
 # Étape 7 — Relie automatiquement le package ghcr.io au dépôt GitHub.
 LABEL org.opencontainers.image.source="https://github.com/MartinFraysse/DevOps-ESIEA"
-LABEL org.opencontainers.image.description="Application Flask de l'atelier 3 (Bloc DevOps ESIEA)"
+LABEL org.opencontainers.image.description="Application Flask des ateliers 3 et 4 (Bloc DevOps ESIEA)"
 
 # Seul le venv est rapatrié : ni compilateurs, ni outils de build, ni cache du stage builder.
 COPY --from=builder /opt/venv /opt/venv
