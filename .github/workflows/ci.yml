@@ -105,7 +105,8 @@ jobs:
       # Le runner est une machine neuve à chaque fois : pas d'état, pas d'image.
       # deploy.sh démarre redis + nginx et télécharge l'image du commit sur ghcr.io.
       - name: Déployer en blue/green
-        run: ./deploy/deploy.sh "${{ github.sha }}"
+        # 1er argument : le tag de l'image, 2e : le SHA qu'on doit retrouver dans /status
+        run: ./deploy/deploy.sh "${{ github.sha }}" "${{ github.sha }}"
 
       - name: Vérifier ce que nginx renvoie
         run: curl -s localhost:8080/status

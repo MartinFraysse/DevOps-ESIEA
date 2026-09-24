@@ -35,6 +35,8 @@ def status():
         version="1.0",
         # Couleur du conteneur (blue ou green), donnee par docker-compose
         deploy_color=os.environ.get("DEPLOY_COLOR", "unknown"),
+        # SHA du commit, mis dans l'image au moment du build par la CI
+        commit=os.environ.get("GIT_SHA", "unknown"),
     ), 200
 
 

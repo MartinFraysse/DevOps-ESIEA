@@ -21,7 +21,7 @@ Chaque dossier contient son propre `README.md` qui documente le travail réalis�
 .
 ├── .github/
 │   ├── CODEOWNERS             # propriétaires par zone
-│   └── workflows/ci.yml       # pipeline CI (lint + tests), lu par GitHub à cet emplacement
+│   └── workflows/ci.yml       # pipeline CI/CD (lint, tests, build, déploiement), lu par GitHub à cet emplacement
 ├── .gitignore                 # exclusions communes à tous les ateliers
 ├── hooks/pre-commit           # hook anti-secret, appliqué à tout le dépôt
 ├── atelier-1/
@@ -92,6 +92,9 @@ git config core.hooksPath hooks
 Le workflow `.github/workflows/ci.yml` se lance sur chaque pull request et sur chaque push vers `main`.
 Il exécute d'abord `lint` (flake8), puis, si le style est correct, `test` (pytest avec couverture)
 sur Python 3.10, 3.11 et 3.12 en parallèle ; les 4 checks sont obligatoires pour merger sur `main`.
+
+Depuis la séance 4, un push sur `main` va plus loin : `build-and-push` publie l'image Docker sur ghcr.io, puis
+`deploy` la déploie en blue/green après mon approbation (détails dans [`atelier-4/`](atelier-4/README.md)).
 
 La CI travaille sur le dossier de l'atelier en cours : `atelier-2/` au début, `atelier-4/` depuis la séance 4.
 
