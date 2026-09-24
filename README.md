@@ -93,6 +93,8 @@ Le workflow `.github/workflows/ci.yml` se lance sur chaque pull request et sur c
 Il exécute d'abord `lint` (flake8), puis, si le style est correct, `test` (pytest avec couverture)
 sur Python 3.10, 3.11 et 3.12 en parallèle ; les 4 checks sont obligatoires pour merger sur `main`.
 
+La CI travaille sur le dossier de l'atelier en cours : `atelier-2/` au début, `atelier-4/` depuis la séance 4.
+
 ## Membres
 
 - Martin Fraysse — groupe d'une seule personne.

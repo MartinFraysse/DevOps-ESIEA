@@ -6,7 +6,7 @@ on:
 
 defaults:
   run:
-    working-directory: atelier-2
+    working-directory: atelier-4
 
 jobs:
   lint:
@@ -21,7 +21,7 @@ jobs:
           python-version: "3.12"
 
       - name: Installer les dépendances
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt
 
       - name: Lancer flake8
         run: flake8 .
@@ -45,12 +45,12 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('atelier-2/requirements.txt') }}
+          key: pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('atelier-4/requirements*.txt') }}
           restore-keys: |
             pip-${{ runner.os }}-${{ matrix.python-version }}-
 
       - name: Installer les dépendances
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-dev.txt
 
       - name: Lancer les tests
         run: pytest -v --cov=app --cov-report=html --cov-report=term
@@ -60,4 +60,4 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ matrix.python-version }}
-          path: atelier-2/htmlcov/
+          path: atelier-4/htmlcov/
