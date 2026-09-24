@@ -124,3 +124,19 @@ J'ai vérifié le script avec `shellcheck`, il ne signale rien.
 arrête `blue`, et `green` reste la couleur active :
 
 ![échec, couleur inchangée](screens/etape4-echec-couleur-inchangee.png)
+
+## Étape 5 — Job `deploy` dans la CI
+
+Le pipeline a maintenant 4 jobs : `lint` → `test` → `build-and-push` → `deploy`. Le job `deploy` tourne après
+`build-and-push`, seulement sur un push sur `main`, et appelle `deploy.sh` avec le SHA du commit : il déploie donc
+exactement l'image qui vient d'être construite.
+
+Le job est dans un `environment: production`. Dans les réglages du dépôt (*Settings → Environments*), j'ai mis
+une règle **Required reviewers** : le déploiement attend que je l'approuve avant de partir. C'est un garde-fou
+avant de toucher la production, même si ici elle est simulée. Ce réglage se fait dans GitHub, pas dans le YAML.
+
+**Limite :** chaque job tourne sur une machine neuve, qui est supprimée à la fin. Il n'y a donc ni
+`.active-color`, ni image, ni conteneur d'un run à l'autre : en CI, chaque déploiement est un premier
+déploiement (sur `blue`). C'est pour ça que `deploy.sh` démarre lui-même `redis` et `nginx`, et que l'image est
+téléchargée depuis ghcr.io. La vraie bascule blue ↔ green est testée en local (étape 4). Pour garder l'état
+entre deux déploiements, il faudrait déployer sur un vrai serveur.
