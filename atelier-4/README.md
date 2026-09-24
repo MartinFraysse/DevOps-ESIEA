@@ -88,3 +88,39 @@ docker compose up -d                   # redis + nginx seulement
 docker compose --profile blue up -d    # + app-blue
 curl localhost:8080/status             # {"deploy_color":"blue", ...}
 ```
+
+## Étape 4 — Script de déploiement et rollback
+
+Le script `deploy/deploy.sh` déploie une image sur la couleur qui ne sert pas le trafic, et ne bascule que si la
+nouvelle version marche :
+
+```
+./deploy/deploy.sh <tag de l'image>      # ex : ./deploy/deploy.sh local
+```
+
+1. il lit la couleur active dans `deploy/.active-color` (fichier pas dans Git). S'il n'existe pas, c'est le
+   premier déploiement : le script démarre `redis` et `nginx` ;
+2. il lance l'autre couleur avec la nouvelle image ;
+3. il attend que `/health` réponde 200 (10 essais, 3 secondes entre chaque, parce que l'app met un peu de temps à
+   démarrer), puis fait un smoke test : `/status` doit renvoyer la bonne couleur ;
+4. **si tout est bon** : il réécrit la config nginx, fait `nginx -s reload` (pas besoin de redémarrer nginx),
+   enregistre la nouvelle couleur, et seulement après il arrête l'ancienne. Dans l'autre ordre, plus personne ne
+   répondrait pendant quelques secondes ;
+   **sinon** : il arrête la nouvelle version et sort en erreur. La couleur active ne change pas.
+
+Les appels à `/health` et `/status` sont faits depuis le conteneur nginx (`docker compose exec nginx wget ...`),
+parce que les apps n'ont pas de port ouvert sur la machine.
+
+J'ai utilisé `--no-deps` pour lancer la nouvelle couleur : sans ça, Docker Compose relance Redis tout seul (à
+cause du `depends_on`), et on ne peut plus tester le cas où Redis est arrêté.
+
+J'ai vérifié le script avec `shellcheck`, il ne signale rien.
+
+**Déploiement qui marche** : la couleur passe de `blue` à `green`, et nginx envoie bien le trafic vers `green` :
+
+![bascule ok](screens/etape4-bascule-ok.png)
+
+**Déploiement qui échoue** : Redis est arrêté, donc `/health` renvoie 503. Après 10 essais le script abandonne,
+arrête `blue`, et `green` reste la couleur active :
+
+![échec, couleur inchangée](screens/etape4-echec-couleur-inchangee.png)
