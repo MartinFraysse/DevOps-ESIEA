@@ -1,8 +1,113 @@
 # Atelier 4 — Pipeline CI/CD de bout en bout
 
-Point de départ : les fichiers finaux de l'atelier 3 (app Flask + Redis, Dockerfile multi-stage, docker-compose).
+Dans cette séance, j'ai complété la CI des séances précédentes pour qu'un push sur `main` aille jusqu'au
+déploiement : l'image Docker est construite et publiée sur ghcr.io, puis déployée en blue/green, avec un rollback
+automatique si la nouvelle version ne marche pas. Le point de départ était le code final de l'atelier 3.
 
-Le compte rendu complet de la séance sera ajouté ici à la fin de l'atelier.
+## Le pipeline
+
+```
+ pull request                     push sur main (= merge d'une PR)
+      │                                   │
+      ▼                                   ▼
+   ┌──────┐   ┌──────────────────┐   ┌────────────────┐   ┌──────────────────────┐
+   │ lint │ ► │ test 3.10/11/12  │ ► │ build-and-push │ ► │ deploy               │
+   └──────┘   └──────────────────┘   └────────────────┘   │ environment:         │
+                                        image sur ghcr.io  │ production           │
+   sur une PR : build-and-push           tags : <sha> +    │ (attend mon          │
+   et deploy sont skipped                latest            │  approbation)        │
+                                                           └──────────────────────┘
+```
+
+| Job | Quand | Ce qu'il fait |
+|-----|-------|---------------|
+| `lint` | PR et push sur `main` | flake8 |
+| `test` | après `lint` | pytest + couverture sur Python 3.10, 3.11 et 3.12 |
+| `build-and-push` | après `test`, push sur `main` seulement | construit l'image et la pousse sur ghcr.io avec le tag du SHA + `latest` |
+| `deploy` | après `build-and-push`, push sur `main` seulement | attend l'approbation (environment `production`) puis lance `deploy/deploy.sh` |
+
+`lint` et `test` tournent aussi sur les PR, parce que les règles de `main` demandent ces 4 checks pour merger.
+
+## La stratégie de déploiement : blue/green
+
+```
+                    ┌─────────────┐
+ curl :8080  ─────► │    nginx    │ ──── trafic ────► app-blue  (version en prod)
+                    └─────────────┘                        │
+                                                           ├──► redis
+                        après la bascule ─ ─ ─► app-green (nouvelle version)
+```
+
+Il y a deux copies de l'app, `blue` et `green`. Une seule reçoit le trafic. Pour déployer, `deploy.sh` lance la
+nouvelle version sur la couleur libre et la teste. Si elle marche, nginx passe dessus et l'ancienne est arrêtée.
+Si elle ne marche pas, le script l'arrête et la production ne bouge pas.
+
+Il y a deux sortes de rollback :
+
+- **automatique** (étapes 4 et 8) : si `/health` ne répond pas 200, ou si `/status` ne renvoie pas la bonne
+  couleur et le bon SHA, la bascule n'a pas lieu ;
+- **manuel** (étape 7) : si on trouve un problème après le déploiement, on fait un `git revert` et le pipeline
+  redéploie la version d'avant.
+
+**Limite :** en CI, le job `deploy` tourne sur une machine neuve à chaque fois, donc la « production » est
+simulée et repart de zéro à chaque run (détails à l'étape 5). La bascule blue ↔ green se voit en local.
+
+## Lancer en local
+
+Il faut Docker avec Compose, et `jq`.
+
+```bash
+git clone https://github.com/MartinFraysse/DevOps-ESIEA.git
+cd DevOps-ESIEA/atelier-4
+
+# construire l'image avec le SHA du commit
+docker build --build-arg GIT_SHA=$(git rev-parse HEAD) -t ghcr.io/martinfraysse/devops-web:local .
+
+# déployer (le 1er lancement démarre aussi redis et nginx)
+./deploy/deploy.sh local "$(git rev-parse HEAD)"
+curl localhost:8080/status        # {"commit":"...","deploy_color":"blue",...}
+
+# relancer la même commande fait basculer sur green
+./deploy/deploy.sh local "$(git rev-parse HEAD)"
+```
+
+On peut aussi déployer une image publiée par la CI : `./deploy/deploy.sh <sha> <sha>`.
+
+Pour tout arrêter : `docker compose --profile blue --profile green down` (ajouter `-v` pour vider Redis), puis
+supprimer `deploy/.active-color` et `deploy/nginx/active.conf`.
+
+**Lancer les tests :** `pip install -r requirements-dev.txt` puis `pytest -v`.
+
+## Fichiers
+
+| Fichier | Rôle |
+|---------|------|
+| `app.py` | L'app Flask : `/health` vérifie Redis, `/status` renvoie la couleur et le SHA du commit |
+| `test_app.py` | Les tests (dont `/health` avec Redis en panne) |
+| `Dockerfile` | L'image multi-stage de l'atelier 3, avec en plus le SHA du commit (`GIT_SHA`) |
+| `docker-compose.yml` | `redis` + `nginx`, et `app-blue` / `app-green` avec des profiles |
+| `deploy/deploy.sh` | Le script de déploiement blue/green avec rollback |
+| `deploy/nginx/app.conf.template` | Le modèle de config nginx (le script en fait `active.conf`) |
+| `.env.example` | Exemple de config locale (`IMAGE_TAG`) |
+| `../.github/workflows/ci.yml` | Le pipeline (à la racine du dépôt, seul endroit lu par GitHub) |
+| `screens/` | Mes captures d'écran pour chaque étape |
+
+## Checklist
+
+| Demandé | Fait | Preuve |
+|---------|------|--------|
+| 4 jobs enchaînés `lint` → `test` → `build-and-push` → `deploy`, build et deploy seulement sur `main` | Oui | Étape 5 |
+| Image sur ghcr.io avec un tag SHA + `latest` | Oui | Étape 2 |
+| Blue/green en local, avec une vraie bascule (`deploy_color` change) | blue → green | Étape 4 |
+| Rollback automatique testé (health cassé → l'ancienne version reste) | Redis coupé | Étape 4 |
+| Job `deploy` dans `environment: production` | Avec approbation | Étape 5 |
+| Un vrai push qui déclenche tout jusqu'au déploiement | Version 1.1 | Étape 6 |
+| Rollback manuel avec `git revert` | Retour à 1.0 | Étape 7 |
+| `/health` vérifie Redis, testé Redis démarré et coupé | 200 / 503 | Étape 1 |
+| `/status` renvoie le SHA, vérifié par le smoke test, testé avec un SHA faux | `deadbeef` refusé | Étape 8 |
+| README qui décrit le pipeline et la stratégie de déploiement | Oui | Ce fichier |
+
+---
 
 ## Étape 1 — Un `/health` qui vérifie vraiment quelque chose
 
@@ -98,6 +203,8 @@ nouvelle version marche :
 ./deploy/deploy.sh <tag de l'image>      # ex : ./deploy/deploy.sh local
 ```
 
+(Depuis l'étape 8, le script prend aussi le SHA attendu en 2e argument.)
+
 1. il lit la couleur active dans `deploy/.active-color` (fichier pas dans Git). S'il n'existe pas, c'est le
    premier déploiement : le script démarre `redis` et `nginx` ;
 2. il lance l'autre couleur avec la nouvelle image ;
@@ -140,3 +247,68 @@ avant de toucher la production, même si ici elle est simulée. Ce réglage se f
 déploiement (sur `blue`). C'est pour ça que `deploy.sh` démarre lui-même `redis` et `nginx`, et que l'image est
 téléchargée depuis ghcr.io. La vraie bascule blue ↔ green est testée en local (étape 4). Pour garder l'état
 entre deux déploiements, il faudrait déployer sur un vrai serveur.
+
+Sur une pull request, `build-and-push` et `deploy` sont `skipped` : on ne publie et on ne déploie rien tant que ce
+n'est pas mergé sur `main` :
+
+![PR : build et deploy skipped](screens/etape5-pr-build-deploy-skipped.png)
+
+Après un push sur `main`, les 4 jobs s'enchaînent et `deploy` attend mon approbation :
+
+![4 jobs, deploy en attente](screens/etape5-4-jobs-deploy-en-attente.png)
+
+## Étape 6 — Test de bout en bout
+
+J'ai fait un vrai changement visible de l'extérieur : `/status` renvoie `"version":"1.1"` au lieu de `"1.0"`
+(PR #38). Après le merge sur `main`, tout le pipeline s'est déroulé tout seul ; la seule action manuelle a été
+d'approuver le déploiement. Dans les logs du job `deploy`, nginx renvoie bien la version 1.1 :
+
+![deploy version 1.1](screens/etape6-deploy-version-1-1.png)
+
+## Étape 7 — Rollback manuel avec `git revert`
+
+On imagine qu'on découvre un problème avec la version 1.1 **après** son déploiement. Le rollback automatique de
+l'étape 4 ne peut rien faire ici : la 1.1 répondait bien sur `/health`, donc elle a été validée.
+
+Au lieu de modifier la production à la main, j'annule le commit avec Git et je laisse le pipeline redéployer :
+
+```bash
+git switch main && git pull
+git log --oneline -5                       # le commit à annuler : 815826f (#38)
+git switch -c revert/version-1-1
+git revert 815826f                         # commit fait par squash = un seul parent, pas besoin de -m
+git show HEAD                              # je relis le diff avant de pousser
+git push -u origin revert/version-1-1      # puis PR #39 et merge
+```
+
+Le diff ne change qu'une ligne (`version="1.1"` redevient `"1.0"`) et `app.py` est revenu exactement comme avant
+la PR #38. Comme `main` est protégée, le revert passe lui aussi par une PR. Après le merge et l'approbation, la
+production renvoie de nouveau la version 1.0 :
+
+![deploy version 1.0 après le revert](screens/etape7-deploy-version-1-0.png)
+
+## Étape 8 — Vérifier que c'est la bonne version qui est déployée
+
+Jusqu'ici, le smoke test vérifiait seulement `deploy_color`. Deux images différentes avec la même couleur
+passaient le test : on savait que la couleur répondait, mais pas quel code tournait dedans.
+
+- La CI donne le SHA du commit au build (`--build-arg GIT_SHA=...`), et le `Dockerfile` le met dans une variable
+  d'environnement de l'image (`ARG` + `ENV` dans le dernier stage, tout en bas pour garder le cache).
+- `/status` renvoie ce SHA dans un champ `commit`.
+- `deploy.sh` prend un 2e argument, le SHA attendu. La CI lui passe `github.sha`. Si `/status` ne renvoie pas ce
+  SHA, le déploiement échoue comme un `/health` cassé : la nouvelle couleur est arrêtée et le trafic ne bouge pas.
+
+Le SHA est mis dans l'image au moment du **build**, pas au déploiement : si `deploy.sh` donnait lui-même le SHA
+au conteneur puis le comparait avec… ce même SHA, le test serait toujours bon et ne prouverait rien.
+
+Pour tester en local :
+
+```bash
+docker build --build-arg GIT_SHA=$(git rev-parse HEAD) -t ghcr.io/martinfraysse/devops-web:local .
+./deploy/deploy.sh local "$(git rev-parse HEAD)"   # bon SHA : bascule
+./deploy/deploy.sh local deadbeef                  # SHA faux : refusé, la couleur ne change pas
+```
+
+Avec un SHA faux, le déploiement est refusé et la couleur active ne change pas :
+
+![SHA faux refusé](screens/etape8-sha-faux-rejete.png)
