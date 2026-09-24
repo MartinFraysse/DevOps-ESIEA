@@ -42,6 +42,7 @@ def test_status_endpoint():
     response = client.get("/status")
     assert response.status_code == 200
     assert response.get_json()["service"] == "projet-devops-groupe-demo"
+    assert "deploy_color" in response.get_json()
 
 
 def test_visits_endpoint_increments_counter(monkeypatch):

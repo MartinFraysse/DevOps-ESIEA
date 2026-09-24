@@ -1,19 +1,43 @@
+# Blue/green : redis et nginx tournent toujours, app-blue et app-green seulement si on active leur profil.
+#   docker compose up -d                     -> redis + nginx
+#   docker compose --profile blue up -d      -> redis + nginx + app-blue
+
+# Config commune aux deux couleurs
+x-app: &app
+  image: ghcr.io/martinfraysse/devops-web:${IMAGE_TAG:-latest}
+  networks:
+    - backend
+  depends_on:
+    redis:
+      condition: service_healthy
+  # Pas de "ports" : on passe par nginx (sinon blue et green voudraient le même port)
+
 services:
-  web:
-    build: .
-    image: devops-web:latest
-    ports:
-      - "5000:5000"
+  app-blue:
+    <<: *app
+    profiles: ["blue"]
     environment:
-      # Nom du service Compose, résolu par le DNS interne du réseau : ni localhost, ni IP fixe.
+      DEPLOY_COLOR: blue
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+
+  app-green:
+    <<: *app
+    profiles: ["green"]
+    environment:
+      DEPLOY_COLOR: green
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+
+  nginx:
+    image: nginx:stable-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      # On monte le dossier et pas juste le fichier, sinon nginx ne voit pas quand le fichier est réécrit
+      - ./deploy/nginx:/etc/nginx/conf.d:ro
     networks:
       - backend
-    # Attend que Redis réponde vraiment (healthcheck OK), pas seulement que son conteneur soit démarré.
-    depends_on:
-      redis:
-        condition: service_healthy
 
   redis:
     image: redis:7-alpine
