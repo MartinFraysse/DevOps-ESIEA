@@ -44,3 +44,7 @@ htmlcov/
 logs/
 tmp/
 coverage/
+
+# --- Atelier 4 : fichiers générés par le script de déploiement ---
+atelier-4/deploy/.active-color
+atelier-4/deploy/nginx/active.conf
