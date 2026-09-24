@@ -20,7 +20,12 @@ def sanitize_input(value):
 
 @app.route("/health")
 def health():
-    return jsonify(status="ok"), 200
+    """Verifie que Redis repond, sinon renvoie 503."""
+    try:
+        get_redis_client().ping()
+    except redis.RedisError:
+        return jsonify(status="error", redis="down"), 503
+    return jsonify(status="ok", redis="ok"), 200
 
 
 @app.route("/status")
@@ -34,6 +39,9 @@ def get_redis_client():
         host=os.environ.get("REDIS_HOST", "redis"),
         port=int(os.environ.get("REDIS_PORT", "6379")),
         decode_responses=True,
+        # Sans timeout, /health reste bloque si Redis ne repond pas
+        socket_connect_timeout=2,
+        socket_timeout=2,
     )
 
 
