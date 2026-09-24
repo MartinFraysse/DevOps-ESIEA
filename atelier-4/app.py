@@ -32,7 +32,7 @@ def health():
 def status():
     return jsonify(
         service="projet-devops-groupe-demo",
-        version="1.1",
+        version="1.0",
         # Couleur du conteneur (blue ou green), donnee par docker-compose
         deploy_color=os.environ.get("DEPLOY_COLOR", "unknown"),
     ), 200
