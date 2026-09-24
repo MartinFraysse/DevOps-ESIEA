@@ -91,3 +91,21 @@ jobs:
           tags: |
             ghcr.io/martinfraysse/devops-web:${{ github.sha }}
             ghcr.io/martinfraysse/devops-web:latest
+
+  deploy:
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # Environment GitHub : il faut une approbation avant que le déploiement parte
+    environment: production
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v7
+
+      # Le runner est une machine neuve à chaque fois : pas d'état, pas d'image.
+      # deploy.sh démarre redis + nginx et télécharge l'image du commit sur ghcr.io.
+      - name: Déployer en blue/green
+        run: ./deploy/deploy.sh "${{ github.sha }}"
+
+      - name: Vérifier ce que nginx renvoie
+        run: curl -s localhost:8080/status
