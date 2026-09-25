@@ -1,0 +1,63 @@
+# Blue/green : redis et nginx tournent toujours, app-blue et app-green seulement si on active leur profil.
+#   docker compose -f docker-compose.deploy.yml up -d                  -> redis + nginx
+#   docker compose -f docker-compose.deploy.yml --profile blue up -d   -> redis + nginx + app-blue
+
+# Config commune aux deux couleurs
+x-app: &app
+  image: ghcr.io/martinfraysse/devops-web:${IMAGE_TAG:-latest}
+  networks:
+    - backend
+  depends_on:
+    redis:
+      condition: service_healthy
+  # Pas de "ports" : on passe par nginx (sinon blue et green voudraient le même port)
+
+services:
+  app-blue:
+    <<: *app
+    profiles: ["blue"]
+    environment:
+      DEPLOY_COLOR: blue
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+
+  app-green:
+    <<: *app
+    profiles: ["green"]
+    environment:
+      DEPLOY_COLOR: green
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+
+  nginx:
+    image: nginx:stable-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      # On monte le dossier et pas juste le fichier, sinon nginx ne voit pas quand le fichier est réécrit
+      - ./deploy/nginx:/etc/nginx/conf.d:ro
+    networks:
+      - backend
+
+  redis:
+    image: redis:7-alpine
+    # AOF : chaque écriture est journalisée sur disque, le compteur survit à un arrêt de Redis.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      # redis-cli est fourni par l'image ; grep échoue tant que Redis ne répond pas PONG (ex. : LOADING).
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - backend
+    # Pas de "ports" : Redis n'est joignable que par les services du réseau backend, pas depuis l'hôte.
+
+networks:
+  backend:
+
+volumes:
+  redis-data:
