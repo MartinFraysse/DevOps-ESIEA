@@ -1,0 +1,14 @@
+# Config Prometheus de l'atelier 5
+global:
+  scrape_interval: 5s       # Prometheus lit /metrics toutes les 5 secondes
+  evaluation_interval: 5s   # et vérifie les règles d'alerte toutes les 5 secondes
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  - job_name: web
+    static_configs:
+      # Nom du service dans docker-compose.yml, pas localhost :
+      # dans le conteneur prometheus, localhost c'est prometheus lui-même
+      - targets: ["web:5000"]
