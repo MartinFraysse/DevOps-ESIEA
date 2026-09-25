@@ -1,4 +1,4 @@
-# Stack de l'atelier 5 : l'app et Redis, construits en local.
+# Stack de l'atelier 5 : l'app, Redis et Prometheus.
 #   docker compose up -d --build
 # Le blue/green de l'atelier 4 est dans docker-compose.deploy.yml (utilisé par deploy/deploy.sh).
 
@@ -30,8 +30,22 @@ services:
     networks:
       - backend
 
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    ports:
+      - "9090:9090"
+    volumes:
+      # prometheus.yml et alerts.yml
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - web
+    networks:
+      - backend
+
 networks:
   backend:
 
 volumes:
   redis-data:
+  prometheus-data:
