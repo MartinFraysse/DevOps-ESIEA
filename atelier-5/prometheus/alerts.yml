@@ -1,2 +1,14 @@
-# Règles d'alerte (complété à l'étape 7)
-groups: []
+# Règles d'alerte, vérifiées toutes les 5 s (evaluation_interval dans prometheus.yml)
+groups:
+  - name: app
+    rules:
+      - alert: TauxErreurEleve
+        # Part des réponses 5xx sur la dernière minute (même calcul que le panneau du dashboard)
+        expr: sum(rate(http_requests_total{status=~"5.."}[1m])) / sum(rate(http_requests_total[1m])) > 0.05
+        # Il faut que ça dure 30 s : un pic d'erreurs très court ne déclenche pas l'alerte
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Plus de 5 % d'erreurs sur l'app"
+          description: "Taux d'erreur actuel : {{ $value | humanizePercentage }}"
