@@ -1,9 +1,17 @@
 import os
 
 import redis
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, generate_latest
 
 app = Flask(__name__)
+
+# Nombre de requetes recues, par methode, route et code de retour
+REQUESTS = Counter(
+    "http_requests_total",
+    "Nombre total de requetes HTTP",
+    ["method", "endpoint", "status"],
+)
 
 ALERT_THRESHOLD = 25
 
@@ -56,6 +64,29 @@ def get_redis_client():
 def visits():
     count = get_redis_client().incr("visits")
     return jsonify(visits=count), 200
+
+
+def nom_endpoint():
+    """Route Flask de la requete (ex : /visits), ou 'unknown' si aucune route ne correspond."""
+    # On prend la route et pas l'URL brute :
+    # sinon chaque URL inventee (/azerty...) cree une serie de plus
+    if request.url_rule is None:
+        return "unknown"
+    return request.url_rule.rule
+
+
+@app.after_request
+def compter_requete(response):
+    endpoint = nom_endpoint()
+    # /metrics n'est pas compte, sinon chaque scrape de Prometheus fait monter le compteur
+    if endpoint != "/metrics":
+        REQUESTS.labels(request.method, endpoint, str(response.status_code)).inc()
+    return response
+
+
+@app.route("/metrics")
+def metrics():
+    return generate_latest(), 200, {"Content-Type": CONTENT_TYPE_LATEST}
 
 
 if __name__ == "__main__":

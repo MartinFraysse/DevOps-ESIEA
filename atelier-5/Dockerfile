@@ -43,4 +43,6 @@ ARG GIT_SHA=unknown
 ENV GIT_SHA=$GIT_SHA
 
 # Serveur WSGI de production à la place du serveur de développement Flask.
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "app:app"]
+# Atelier 5 — 1 seul worker (avec 4 threads) : chaque worker a ses propres compteurs Prometheus,
+# avec 2 workers /metrics tomberait une fois sur l'un, une fois sur l'autre.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "app:app"]
