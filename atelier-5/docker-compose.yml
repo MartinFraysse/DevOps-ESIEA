@@ -54,6 +54,8 @@ services:
     volumes:
       # Grafana lit ce dossier au démarrage : la datasource est créée toute seule
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      # Le JSON du dashboard, chargé par le provider de grafana/provisioning/dashboards
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus

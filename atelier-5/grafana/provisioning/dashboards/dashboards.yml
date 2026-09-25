@@ -1,0 +1,10 @@
+# "Provider" de dashboards : Grafana charge au démarrage tous les JSON du dossier ci-dessous
+apiVersion: 1
+
+providers:
+  - name: atelier-5
+    type: file
+    # Le dashboard est dans Git : on le modifie dans le JSON, pas dans l'interface
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards
