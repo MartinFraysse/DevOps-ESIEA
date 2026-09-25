@@ -83,3 +83,24 @@ def test_metrics_ne_se_compte_pas():
     assert "http_requests_total" in response.get_data(as_text=True)
     client.get("/metrics")
     assert nb_requetes("GET", "/metrics", "200") == 0
+
+
+def test_simulate_error_renvoie_500():
+    client = app.test_client()
+    avant = nb_requetes("GET", "/simulate-error", "500")
+    response = client.get("/simulate-error")
+    assert response.status_code == 500
+    assert nb_requetes("GET", "/simulate-error", "500") == avant + 1
+
+
+def test_histogramme_latence():
+    client = app.test_client()
+    labels = {"method": "GET", "endpoint": "/status"}
+    avant = REGISTRY.get_sample_value("http_request_duration_seconds_count", labels) or 0
+    client.get("/status")
+    assert REGISTRY.get_sample_value("http_request_duration_seconds_count", labels) == avant + 1
+    # Un histogramme donne 3 familles de series : _bucket, _sum et _count
+    texte = client.get("/metrics").get_data(as_text=True)
+    assert "http_request_duration_seconds_bucket{" in texte
+    assert "http_request_duration_seconds_sum{" in texte
+    assert "http_request_duration_seconds_count{" in texte
