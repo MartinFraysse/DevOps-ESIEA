@@ -98,7 +98,8 @@ sur Python 3.10, 3.11 et 3.12 en parallèle ; les 4 checks sont obligatoires pou
 Depuis la séance 4, un push sur `main` va plus loin : `build-and-push` publie l'image Docker sur ghcr.io, puis
 `deploy` la déploie en blue/green après mon approbation (détails dans [`atelier-4/`](atelier-4/README.md)).
 
-La CI travaille sur le dossier de l'atelier en cours : `atelier-2/` au début, `atelier-4/` depuis la séance 4.
+La CI travaille sur le dossier de l'atelier en cours : `atelier-2/` au début, `atelier-4/` à la séance 4,
+`atelier-5/` depuis la séance 5.
 
 ## Membres
 

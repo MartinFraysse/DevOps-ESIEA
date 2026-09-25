@@ -6,7 +6,7 @@ on:
 
 defaults:
   run:
-    working-directory: atelier-4
+    working-directory: atelier-5
 
 jobs:
   lint:
@@ -45,7 +45,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('atelier-4/requirements*.txt') }}
+          key: pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('atelier-5/requirements*.txt') }}
           restore-keys: |
             pip-${{ runner.os }}-${{ matrix.python-version }}-
 
@@ -60,7 +60,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ matrix.python-version }}
-          path: atelier-4/htmlcov/
+          path: atelier-5/htmlcov/
 
   build-and-push:
     needs: test
@@ -85,7 +85,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           # working-directory ne marche pas pour les "uses", il faut donner le dossier
-          context: atelier-4
+          context: atelier-5
           push: true
           build-args: GIT_SHA=${{ github.sha }}
           tags: |
