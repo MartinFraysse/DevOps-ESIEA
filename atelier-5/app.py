@@ -19,6 +19,9 @@ LATENCY = Histogram(
     "http_request_duration_seconds",
     "Duree de traitement des requetes HTTP",
     ["method", "endpoint"],
+    # Seaux plus petits que ceux par defaut (5 ms minimum) : nos requetes prennent moins de 5 ms,
+    # avec les seaux par defaut tout tombait dans le premier et le p95 ne voulait rien dire
+    buckets=(0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5),
 )
 
 ALERT_THRESHOLD = 25
