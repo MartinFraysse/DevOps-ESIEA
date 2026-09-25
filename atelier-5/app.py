@@ -1,8 +1,9 @@
 import os
+import time
 
 import redis
-from flask import Flask, jsonify, request
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, generate_latest
+from flask import Flask, g, jsonify, request
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 app = Flask(__name__)
 
@@ -11,6 +12,13 @@ REQUESTS = Counter(
     "http_requests_total",
     "Nombre total de requetes HTTP",
     ["method", "endpoint", "status"],
+)
+
+# Temps de traitement des requetes, en secondes (histogramme : on peut calculer un p95 ensuite)
+LATENCY = Histogram(
+    "http_request_duration_seconds",
+    "Duree de traitement des requetes HTTP",
+    ["method", "endpoint"],
 )
 
 ALERT_THRESHOLD = 25
@@ -75,12 +83,24 @@ def nom_endpoint():
     return request.url_rule.rule
 
 
+@app.route("/simulate-error")
+def simulate_error():
+    """Renvoie toujours une erreur 500, pour tester l'alerte."""
+    return jsonify(status="error", message="erreur simulee"), 500
+
+
+@app.before_request
+def demarrer_chrono():
+    g.debut = time.perf_counter()
+
+
 @app.after_request
-def compter_requete(response):
+def enregistrer_metriques(response):
     endpoint = nom_endpoint()
-    # /metrics n'est pas compte, sinon chaque scrape de Prometheus fait monter le compteur
+    # /metrics n'est pas compte, sinon chaque scrape de Prometheus fait monter les metriques
     if endpoint != "/metrics":
         REQUESTS.labels(request.method, endpoint, str(response.status_code)).inc()
+        LATENCY.labels(request.method, endpoint).observe(time.perf_counter() - g.debut)
     return response
 
 
