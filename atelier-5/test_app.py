@@ -1,5 +1,6 @@
 import fakeredis
 import redis
+from prometheus_client import REGISTRY
 
 import app as app_module
 from app import alert_threshold, sanitize_input, app
@@ -52,3 +53,33 @@ def test_visits_endpoint_increments_counter(monkeypatch):
     client = app.test_client()
     assert client.get("/visits").get_json()["visits"] == 1
     assert client.get("/visits").get_json()["visits"] == 2
+
+
+def nb_requetes(method, endpoint, status):
+    """Valeur actuelle du compteur http_requests_total (0 si la serie n'existe pas encore)."""
+    labels = {"method": method, "endpoint": endpoint, "status": status}
+    return REGISTRY.get_sample_value("http_requests_total", labels) or 0
+
+
+def test_compteur_augmente_a_chaque_requete():
+    client = app.test_client()
+    avant = nb_requetes("GET", "/status", "200")
+    client.get("/status")
+    client.get("/status")
+    assert nb_requetes("GET", "/status", "200") == avant + 2
+
+
+def test_url_inconnue_regroupee():
+    client = app.test_client()
+    avant = nb_requetes("GET", "unknown", "404")
+    client.get("/nimportequoi")
+    assert nb_requetes("GET", "unknown", "404") == avant + 1
+
+
+def test_metrics_ne_se_compte_pas():
+    client = app.test_client()
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert "http_requests_total" in response.get_data(as_text=True)
+    client.get("/metrics")
+    assert nb_requetes("GET", "/metrics", "200") == 0
