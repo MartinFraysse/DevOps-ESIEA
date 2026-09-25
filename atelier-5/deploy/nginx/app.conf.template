@@ -1,0 +1,16 @@
+# Modèle de config nginx.
+# Le fichier active.conf est créé à partir de ce modèle, en mettant la couleur active (blue ou green)
+# dans le nom de l'app ci-dessous.
+
+# DNS interne de Docker : nginx cherche l'adresse de l'app à chaque requête et pas seulement au démarrage.
+# Sans ça, nginx refuse de démarrer si l'app n'est pas encore lancée.
+resolver 127.0.0.11 valid=5s;
+
+server {
+    listen 80;
+
+    location / {
+        set $app http://app-COLOR:5000;
+        proxy_pass $app;
+    }
+}

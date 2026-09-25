@@ -48,3 +48,7 @@ coverage/
 # --- Atelier 4 : fichiers générés par le script de déploiement ---
 atelier-4/deploy/.active-color
 atelier-4/deploy/nginx/active.conf
+
+# --- Atelier 5 : pareil que l'atelier 4 ---
+atelier-5/deploy/.active-color
+atelier-5/deploy/nginx/active.conf

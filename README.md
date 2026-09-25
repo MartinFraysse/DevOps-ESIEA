@@ -12,6 +12,7 @@ Dépôt des ateliers du **Bloc DevOps** — ESIEA S9.
 | [`atelier-2/`](atelier-2/) | 2 | Pipeline CI avec GitHub Actions |
 | [`atelier-3/`](atelier-3/) | 3 | Conteneurisation Docker |
 | [`atelier-4/`](atelier-4/) | 4 | Pipeline CI/CD de bout en bout |
+| [`atelier-5/`](atelier-5/) | 5 | Observabilité (Prometheus & Grafana) |
 
 Chaque dossier contient son propre `README.md` qui documente le travail réalisé pendant la séance.
 
@@ -27,7 +28,8 @@ Chaque dossier contient son propre `README.md` qui documente le travail réalis�
 ├── atelier-1/
 ├── atelier-2/
 ├── atelier-3/
-└── atelier-4/
+├── atelier-4/
+└── atelier-5/
 ```
 
 Les fichiers de la racine s'appliquent à tout le dépôt ; tout ce qui est propre à une séance vit dans son dossier.
