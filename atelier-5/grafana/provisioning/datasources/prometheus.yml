@@ -1,0 +1,13 @@
+# Datasource créée automatiquement au démarrage de Grafana (pas besoin de la créer à la main)
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    # uid fixe : le dashboard (étape 6) s'en sert pour savoir quelle datasource utiliser
+    uid: prometheus
+    access: proxy
+    # Nom du service prometheus, pas localhost (même piège qu'à l'étape 3)
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

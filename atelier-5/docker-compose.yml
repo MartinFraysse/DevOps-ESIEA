@@ -1,4 +1,4 @@
-# Stack de l'atelier 5 : l'app, Redis et Prometheus.
+# Stack de l'atelier 5 : l'app, Redis, Prometheus et Grafana.
 #   docker compose up -d --build
 # Le blue/green de l'atelier 4 est dans docker-compose.deploy.yml (utilisé par deploy/deploy.sh).
 
@@ -43,9 +43,27 @@ services:
     networks:
       - backend
 
+  grafana:
+    image: grafana/grafana:13.2.2
+    ports:
+      - "3000:3000"
+    environment:
+      # Mot de passe dans le fichier .env (ignoré par Git), "admin" par défaut en local
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      # Grafana lit ce dossier au démarrage : la datasource est créée toute seule
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - backend
+
 networks:
   backend:
 
 volumes:
   redis-data:
   prometheus-data:
+  grafana-data:
